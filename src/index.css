@@ -1,0 +1,114 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  --color-hospital-50: #f0f9ff;
+  --color-hospital-100: #e0f2fe;
+  --color-hospital-200: #bae6fd;
+  --color-hospital-300: #7dd3fc;
+  --color-hospital-400: #38bdf8;
+  --color-hospital-500: #0ea5e9;
+  --color-hospital-600: #0284c7;
+  --color-hospital-700: #0369a1;
+  --color-hospital-800: #075985;
+  --color-hospital-900: #0c4a6e;
+
+  --color-cyanic-50: #ecfeff;
+  --color-cyanic-100: #cffafe;
+  --color-cyanic-200: #a5f3fc;
+  --color-cyanic-300: #67e8f9;
+  --color-cyanic-400: #22d3ee;
+  --color-cyanic-500: #06b6d4;
+  --color-cyanic-600: #0891b2;
+  --color-cyanic-700: #0e7490;
+  --color-cyanic-800: #155e75;
+  --color-cyanic-900: #164e63;
+
+  --font-sans: 'Outfit', 'Inter', sans-serif;
+
+  --shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+  --shadow-glass-hover: 0 8px 32px 0 rgba(31, 38, 135, 0.12);
+  --shadow-premium: 0 10px 30px -10px rgba(2, 132, 199, 0.1);
+  --shadow-premium-hover: 0 20px 40px -15px rgba(2, 132, 199, 0.18);
+}
+
+body {
+  background-color: var(--color-slate-50);
+  color: var(--color-slate-800);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Smooth page transitions helper */
+.page-transition-enter {
+  opacity: 0;
+  transform: translateY(10px);
+}
+.page-transition-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 300ms, transform 300ms;
+}
+
+/* Glassmorphism panel styling */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.glass-panel-dark {
+  background: rgba(15, 23, 42, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Custom Gradients */
+.bg-medical-gradient {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #cffafe 100%);
+}
+
+.bg-hero-gradient {
+  background: linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%);
+}
+
+.bg-card-gradient {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+/* Pulse animation for loading states */
+@keyframes skeleton-loading {
+  0% {
+    background-color: #cbd5e1;
+  }
+  100% {
+    background-color: #f1f5f9;
+  }
+}
+
+.skeleton {
+  animation: skeleton-loading 1s linear infinite alternate;
+}
