@@ -29,7 +29,7 @@ const ProtectedRoute = ({ children }) => {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="login" replace />;
   }
 
   return children;
@@ -38,7 +38,7 @@ const ProtectedRoute = ({ children }) => {
 const AppRoutes = () => {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
+      <Route path="login" element={<Login />} />
       <Route
         path="/admin"
         element={
@@ -47,7 +47,7 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/admin/dashboard" replace />} />
+        <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="patients" element={<Patients />} />
         <Route path="doctors" element={<Doctors />} />
@@ -59,7 +59,7 @@ const AppRoutes = () => {
         <Route path="reports" element={<Reports />} />
         <Route path="settings" element={<Settings />} />
       </Route>
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<Navigate to="login" replace />} />
     </Routes>
   );
 };
