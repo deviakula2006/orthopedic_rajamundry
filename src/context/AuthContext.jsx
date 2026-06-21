@@ -14,23 +14,46 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  const login = async (username, password, role) => {
+  const login = async (username, password, roleInput) => {
     setLoading(true);
     // Simulate API delay
     await new Promise((resolve) => setTimeout(resolve, 800));
 
-    if (username.toLowerCase() === 'admin' && password === 'admin123') {
-      const userData = {
+    const uname = username.toLowerCase();
+    let userData = null;
+
+    if (uname === 'admin' && password === 'admin123') {
+      userData = {
         username,
-        role: role || 'Super Admin',
+        role: 'Admin',
         name: 'Super Admin',
         email: 'admin@roh.com',
         avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'
       };
+    } else if (uname === 'receptionist' && password === 'receptionist123') {
+      userData = {
+        username,
+        role: 'Receptionist',
+        name: 'Laxmi Kumari',
+        email: 'laxmi.k@roh.com',
+        avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80'
+      };
+    } else if (uname === 'doctor' && password === 'doctor123') {
+      userData = {
+        username,
+        role: 'Doctor',
+        name: 'Dr. Arjun Kumar',
+        doctorId: 'DOC001',
+        email: 'arjun.kumar@roh.com',
+        avatar: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&w=150&q=80'
+      };
+    }
+
+    if (userData) {
       localStorage.setItem('roh_admin_user', JSON.stringify(userData));
       setUser(userData);
       setLoading(false);
-      return { success: true };
+      return { success: true, role: userData.role };
     }
 
     setLoading(false);

@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -27,18 +27,31 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     navigate('/login');
   };
 
-  const navItems = [
-    { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
-    { name: 'Patients', path: '/admin/patients', icon: Users },
-    { name: 'Doctors', path: '/admin/doctors', icon: Stethoscope },
-    { name: 'Receptionists', path: '/admin/receptionists', icon: UserCheck },
-    { name: 'Appointments', path: '/admin/appointments', icon: CalendarDays },
-    { name: 'Investigations', path: '/admin/investigations', icon: Activity },
-    { name: 'Billing & Payments', path: '/admin/billing', icon: Receipt },
-    { name: 'Bed Management', path: '/admin/beds', icon: Bed },
-    { name: 'Reports & Analytics', path: '/admin/reports', icon: FileSpreadsheet },
-    { name: 'Settings', path: '/admin/settings', icon: SettingsIcon },
-  ];
+  let navItems = [];
+  if (user?.role === 'Admin') {
+    navItems = [
+      { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
+      { name: 'Patients', path: '/admin/patients', icon: Users },
+      { name: 'Doctors', path: '/admin/doctors', icon: Stethoscope },
+      { name: 'Receptionists', path: '/admin/receptionists', icon: UserCheck },
+      { name: 'Appointments', path: '/admin/appointments', icon: CalendarDays },
+      { name: 'Investigations', path: '/admin/investigations', icon: Activity },
+      { name: 'Billing & Payments', path: '/admin/billing', icon: Receipt },
+      { name: 'Bed Management', path: '/admin/beds', icon: Bed },
+      { name: 'Reports & Analytics', path: '/admin/reports', icon: FileSpreadsheet },
+      { name: 'Settings', path: '/admin/settings', icon: SettingsIcon },
+    ];
+  } else if (user?.role === 'Receptionist') {
+    navItems = [
+      { name: 'Dashboard', path: '/receptionist/dashboard', icon: LayoutDashboard },
+      { name: 'Patients', path: '/receptionist/patients', icon: Users },
+      { name: 'Appointments', path: '/receptionist/appointments', icon: CalendarDays },
+      { name: 'Billing & Payments', path: '/receptionist/billing', icon: Receipt },
+      { name: 'Bed Management', path: '/receptionist/beds', icon: Bed },
+      { name: 'Reports & Analytics', path: '/receptionist/reports', icon: FileSpreadsheet },
+    ];
+  } 
+  
 
   return (
     <>

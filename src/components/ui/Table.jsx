@@ -67,7 +67,7 @@ export const Table = ({
   return (
     <div className="flex flex-col gap-4">
       {/* Search & Filter Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative flex-1 max-w-md">
           <input
             type="text"
@@ -80,7 +80,8 @@ export const Table = ({
         <div className="flex items-center gap-2">
           {filterElement}
         </div>
-      </div>
+      </div> */}
+      
 
       {/* Table Container */}
       <div className="overflow-x-auto rounded-2xl border border-slate-200/80 bg-white shadow-premium">

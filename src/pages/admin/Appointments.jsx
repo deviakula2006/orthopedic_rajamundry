@@ -1,92 +1,75 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useHospital } from '../../context/HospitalContext';
 import { Table } from '../../components/ui/Table';
-import { Modal } from '../../components/ui/Modal';
-import { Plus, Check, X, Calendar, Clock, DollarSign, Stethoscope, User } from 'lucide-react';
+import { Plus, Eye, Edit, Trash2, Calendar, UserPlus, Search, ShieldAlert, HeartPulse, Activity } from 'lucide-react';
+import ThreeDotMenu from '../../components/common/ThreeDotMenu';
+import ConfirmationModal from '../../components/common/ConfirmationModal';
+import StatusBadge from '../../components/common/StatusBadge';
+import Autocomplete from '../../components/common/Autocomplete';
+
+// Modals
+import PatientModal from '../../components/modals/PatientModal';
+import AppointmentModal from '../../components/modals/AppointmentModal';
+import AddVitalsModal from '../../components/modals/AddVitalsModal';
+import OrderInvestigationModal from '../../components/modals/OrderInvestigationModal';
 
 const Appointments = () => {
   const {
     appointments,
     patients,
-    doctors,
-    addAppointment,
-    editAppointment,
+    addPatient,
     updateAppointmentStatus,
     deleteAppointment
   } = useHospital();
 
-  const [isAddOpen, setIsAddOpen] = useState(false);
-  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedApt, setSelectedApt] = useState(null);
+  
+  // Modal states
+  const [patientModalOpen, setPatientModalOpen] = useState(false);
+  const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
+  const [vitalsOpen, setVitalsOpen] = useState(false);
+  const [orderOpen, setOrderOpen] = useState(false);
+  
+  // Confirmations
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [selectedPatientId, setSelectedPatientId] = useState('');
+  const [selectedAptId, setSelectedAptId] = useState('');
 
-  const [formData, setFormData] = useState({
-    patientId: '',
-    doctorId: '',
-    date: '',
-    time: '10:00 AM',
-    type: 'Consultation',
-    fee: 500
-  });
-
-  const handleOpenAdd = () => {
-    setFormData({
-      patientId: patients[0]?.id || '',
-      doctorId: doctors[0]?.id || '',
-      date: new Date().toISOString().split('T')[0],
-      time: '10:00 AM',
-      type: 'Consultation',
-      fee: 500
-    });
-    setIsAddOpen(true);
-  };
-
-  const handleOpenEdit = (apt) => {
-    setSelectedApt(apt);
-    setFormData({
-      patientId: apt.patientId,
-      doctorId: apt.doctorId,
-      date: apt.date,
-      time: apt.time,
-      type: apt.type,
-      fee: apt.fee
-    });
-    setIsEditOpen(true);
-  };
-
-  const handleAddSubmit = (e) => {
-    e.preventDefault();
-    addAppointment(formData);
-    setIsAddOpen(false);
-  };
-
-  const handleEditSubmit = (e) => {
-    e.preventDefault();
-    editAppointment(selectedApt.id, formData);
-    setIsEditOpen(false);
-  };
-
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'Completed':
-        return (
-          <span className="inline-block rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 border border-emerald-100">
-            {status}
-          </span>
-        );
-      case 'Cancelled':
-        return (
-          <span className="inline-block rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-bold text-red-700 border border-red-100">
-            {status}
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-block rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-hospital-700 border border-blue-100">
-            {status}
-          </span>
-        );
+  // Save new patient and trigger appointment modal
+  const handleSavePatient = (patientData, bookAppointment = false) => {
+    const newPatient = addPatient(patientData);
+    if (newPatient) {
+      setSelectedPatientId(newPatient.id);
+      setAppointmentModalOpen(true);
     }
   };
+
+  const handleConfirmDelete = () => {
+    if (selectedAptId) {
+      deleteAppointment(selectedAptId);
+      setSelectedAptId('');
+    }
+  };
+
+  const handleConfirmCancel = () => {
+    if (selectedAptId) {
+      updateAppointmentStatus(selectedAptId, 'Cancelled');
+      setSelectedAptId('');
+    }
+  };
+
+  // Filter appointments
+  const filteredAppointments = useMemo(() => {
+    if (!searchQuery.trim()) return appointments;
+    return appointments.filter(
+      (a) =>
+        a.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        a.doctorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        a.id.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [appointments, searchQuery]);
 
   const columns = [
     {
@@ -100,14 +83,9 @@ const Appointments = () => {
       header: 'Patient Details',
       sortable: true,
       render: (row) => (
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-slate-50 border text-slate-500 font-bold text-xs uppercase">
-            {row.patientName ? row.patientName[0] : 'P'}
-          </div>
-          <div>
-            <span className="font-bold text-slate-800 block">{row.patientName}</span>
-            <span className="text-[10px] font-semibold text-slate-400 block">{row.patientId}</span>
-          </div>
+        <div>
+          <span className="font-bold text-slate-800 block">{row.patientName}</span>
+          <span className="text-[10px] font-semibold text-slate-400 block">{row.patientId}</span>
         </div>
       )
     },
@@ -116,10 +94,7 @@ const Appointments = () => {
       header: 'Assigned Consultant',
       sortable: true,
       render: (row) => (
-        <div className="flex items-center gap-1.5 text-slate-700 font-semibold">
-          <Stethoscope className="h-4 w-4 text-hospital-500" />
-          <span>{row.doctorName}</span>
-        </div>
+        <span className="font-semibold text-slate-700">{row.doctorName}</span>
       )
     },
     {
@@ -146,187 +121,170 @@ const Appointments = () => {
       key: 'status',
       header: 'Schedule Status',
       sortable: true,
-      render: (row) => getStatusBadge(row.status)
+      render: (row) => <StatusBadge status={row.status} />
     }
   ];
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-800 tracking-tight">Appointment Scheduler</h1>
-          <p className="text-xs text-slate-400 font-semibold">Schedule patient checkups and follow-up orthotic sessions</p>
+      
+
+      {/* Roster Search / Add Patient block */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-premium space-y-4">
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+          Search Registered Patient to Book Appointment
+        </span>
+        <div className="flex flex-col lg:flex-row items-center gap-8 w-full">
+  <div className="flex-1">
+    <Autocomplete
+      options={patients}
+      value={selectedPatientId}
+      onChange={(val) => {
+        setSelectedPatientId(val);
+        if (val) {
+          setAppointmentModalOpen(true);
+        }
+      }}
+      placeholder="Search patients by name or ID..."
+      displayKey="name"
+      idKey="id"
+    />
+  </div>
+
+  <button
+    type="button"
+    onClick={() => setPatientModalOpen(true)}
+    className="flex items-center gap-1.5 rounded-xl border border-blue-100 bg-blue-50/50 hover:bg-blue-50 py-2.5 px-4 text-xs font-bold text-hospital-600"
+  >
+    <UserPlus className="h-4 w-4" />
+    <span>Add Patient & Book</span>
+  </button>
+
+  <button
+    type="button"
+    onClick={() => {
+      setSelectedApt(null);
+      setSelectedPatientId('');
+      setAppointmentModalOpen(true);
+    }}
+    className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-hospital-500 to-cyanic-500 px-5 py-2.5 text-sm font-bold text-white shadow-premium"
+  >
+    <Plus className="h-4 w-4" />
+    <span>Book Appointment</span>
+  </button>
+</div>
         </div>
-        <button
-          onClick={handleOpenAdd}
-          className="flex items-center gap-1.5 self-start rounded-xl bg-gradient-to-r from-hospital-500 to-cyanic-500 px-4 py-2.5 text-sm font-bold text-white shadow-premium hover:shadow-premium-hover transition-all focus:outline-none"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Book Appointment</span>
-        </button>
-      </div>
+
+      {/* Search in active appointments Table */}
+      
 
       {/* Main Table */}
       <Table
         columns={columns}
-        data={appointments}
-        searchPlaceholder="Search by patient name..."
-        searchKey="patientName"
-        emptyMessage="No appointments scheduled currently"
+        data={filteredAppointments}
+        emptyMessage="No matching appointments found"
         itemsPerPage={6}
         actions={(row) => (
-          <div className="flex items-center gap-1.5">
-            {row.status === 'Scheduled' && (
-              <>
-                <button
-                  onClick={() => updateAppointmentStatus(row.id, 'Completed')}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-emerald-500 hover:bg-emerald-50 transition-colors"
-                  title="Mark Completed"
-                >
-                  <Check className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => updateAppointmentStatus(row.id, 'Cancelled')}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-rose-500 hover:bg-rose-50 transition-colors"
-                  title="Cancel Booking"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </>
-            )}
-            <button
-              onClick={() => deleteAppointment(row.id)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-              title="Delete Reference"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
+          <ThreeDotMenu
+            options={[
+              {
+                label: 'Reschedule / Edit',
+                icon: Edit,
+                onClick: () => {
+                  setSelectedApt(row);
+                  setAppointmentModalOpen(true);
+                }
+              },
+              {
+                label: 'Add Vitals',
+                icon: HeartPulse,
+                onClick: () => {
+                  setSelectedPatientId(row.patientId);
+                  setVitalsOpen(true);
+                }
+              },
+              {
+                label: 'Add Investigation',
+                icon: Activity,
+                onClick: () => {
+                  setSelectedPatientId(row.patientId);
+                  setOrderOpen(true);
+                }
+              },
+              {
+                label: 'Cancel Appointment',
+                icon: ShieldAlert,
+                destructive: true,
+                onClick: () => {
+                  setSelectedAptId(row.id);
+                  setCancelConfirmOpen(true);
+                }
+              },
+              {
+                label: 'Delete Record',
+                icon: Trash2,
+                destructive: true,
+                onClick: () => {
+                  setSelectedAptId(row.id);
+                  setDeleteConfirmOpen(true);
+                }
+              }
+            ]}
+          />
         )}
       />
 
-      {/* Modal: Add Appointment */}
-      <Modal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} title="Schedule Orthopedic Checkup">
-        <form onSubmit={handleAddSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Select Registered Patient</label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-3 flex items-center text-slate-400">
-                <User className="h-4 w-4" />
-              </span>
-              <select
-                value={formData.patientId}
-                onChange={(e) => setFormData({ ...formData, patientId: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-              >
-                {patients.map((pat) => (
-                  <option key={pat.id} value={pat.id}>{pat.name} ({pat.id})</option>
-                ))}
-              </select>
-            </div>
-          </div>
+      {/* Patient modal */}
+      <PatientModal
+        isOpen={patientModalOpen}
+        onClose={() => setPatientModalOpen(false)}
+        onSave={handleSavePatient}
+      />
 
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Assigned Doctor Consultant</label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-3 flex items-center text-slate-400">
-                <Stethoscope className="h-4 w-4" />
-              </span>
-              <select
-                value={formData.doctorId}
-                onChange={(e) => setFormData({ ...formData, doctorId: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-              >
-                {doctors.map((doc) => (
-                  <option key={doc.id} value={doc.id}>{doc.name} - {doc.specialization}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+      {/* Appointment scheduling modal */}
+      <AppointmentModal
+        isOpen={appointmentModalOpen}
+        onClose={() => setAppointmentModalOpen(false)}
+        appointment={selectedApt}
+        initialPatientId={selectedPatientId}
+      />
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Scheduled Date</label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-3 flex items-center text-slate-400">
-                  <Calendar className="h-4 w-4" />
-                </span>
-                <input
-                  type="date"
-                  required
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Scheduled Time Slot</label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-3 flex items-center text-slate-400">
-                  <Clock className="h-4 w-4" />
-                </span>
-                <input
-                  type="text"
-                  required
-                  value={formData.time}
-                  onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                  placeholder="e.g. 10:30 AM"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
+      {/* Vitals Form modal */}
+      <AddVitalsModal
+        isOpen={vitalsOpen}
+        onClose={() => setVitalsOpen(false)}
+        patientId={selectedPatientId}
+      />
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Appointment Type</label>
-              <select
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-              >
-                <option value="Consultation">Consultation</option>
-                <option value="Therapy">Therapy / Rehab</option>
-                <option value="Surgery Checkup">Surgery Checkup</option>
-                <option value="Follow Up">Follow Up</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Consultation Fee (₹)</label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-3 flex items-center text-slate-400">
-                  <DollarSign className="h-4 w-4" />
-                </span>
-                <input
-                  type="number"
-                  required
-                  value={formData.fee}
-                  onChange={(e) => setFormData({ ...formData, fee: parseInt(e.target.value) })}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-                />
-              </div>
-            </div>
-          </div>
+      {/* Order investigation modal */}
+      <OrderInvestigationModal
+        isOpen={orderOpen}
+        onClose={() => setOrderOpen(false)}
+        patientId={selectedPatientId}
+      />
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => setIsAddOpen(false)}
-              className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-xl bg-hospital-500 text-sm font-bold text-white shadow-premium hover:bg-hospital-600"
-            >
-              Schedule Appointment
-            </button>
-          </div>
-        </form>
-      </Modal>
+      {/* Confirm Deletion */}
+      <ConfirmationModal
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Appointment Record"
+        message="Are you sure you want to delete this appointment from history?"
+        confirmText="Delete"
+        type="danger"
+      />
+
+      {/* Confirm Cancellation */}
+      <ConfirmationModal
+        isOpen={cancelConfirmOpen}
+        onClose={() => setCancelConfirmOpen(false)}
+        onConfirm={handleConfirmCancel}
+        title="Cancel Patient Appointment"
+        message="Are you sure you want to cancel this scheduled checkup? The slot will be vacated."
+        confirmText="Cancel Checkup"
+        type="warning"
+      />
     </div>
   );
 };

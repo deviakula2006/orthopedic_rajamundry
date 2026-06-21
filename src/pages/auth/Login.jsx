@@ -11,7 +11,7 @@ const Login = () => {
 
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('admin123');
-  const [role, setRole] = useState('Super Admin');
+  const [role, setRole] = useState('Admin');
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -25,7 +25,13 @@ const Login = () => {
     try {
       const result = await login(username, password, role);
       if (result.success) {
-        navigate('/admin/dashboard');
+        if (result.role === 'Admin') {
+          navigate('/admin/dashboard');
+        } else if (result.role === 'Receptionist') {
+          navigate('/receptionist/dashboard');
+        } else if (result.role === 'Doctor') {
+          navigate('/doctor/dashboard');
+        }
       } else {
         setError(result.message);
       }
@@ -34,6 +40,12 @@ const Login = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleQuickLogin = (u, p, r) => {
+    setUsername(u);
+    setPassword(p);
+    setRole(r);
   };
 
   return (
@@ -63,11 +75,11 @@ const Login = () => {
             transition={{ duration: 0.5 }}
             className="w-full"
           >
-            <div className="mb-8">
+            <div className="mb-6">
               <h2 className="text-2xl font-bold tracking-tight text-slate-800">
                 Sign in to your account
               </h2>
-              <p className="mt-1.5 text-sm font-medium text-slate-400">
+              <p className="mt-1.5 text-sm font-semibold text-slate-400">
                 Select your administrative role and enter credentials
               </p>
             </div>
@@ -83,27 +95,26 @@ const Login = () => {
               </motion.div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-4">
               {/* Role Dropdown */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
                   Role
                 </label>
                 <select
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 px-4 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-hospital-500 transition-all cursor-pointer"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-hospital-500 transition-all cursor-pointer"
                 >
-                  <option value="Super Admin">Super Admin</option>
-                  <option value="Admin">Admin</option>
-                  <option value="Doctor (Future Module)">Doctor (Future Module)</option>
-                  <option value="Receptionist (Future Module)">Receptionist (Future Module)</option>
+                  <option value="Admin">Admin (Full Access)</option>
+                  <option value="Receptionist">Receptionist (Limited Access)</option>
+                  <option value="Doctor">Doctor (Patient Care Only)</option>
                 </select>
               </div>
 
               {/* Username Input */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
                   Username
                 </label>
                 <div className="relative">
@@ -116,14 +127,14 @@ const Login = () => {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="Enter username (e.g., admin)"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm font-semibold text-slate-700 placeholder-slate-400 focus:border-hospital-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-hospital-500 transition-all"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-11 pr-4 text-sm font-semibold text-slate-700 placeholder-slate-400 focus:border-hospital-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-hospital-500 transition-all"
                   />
                 </div>
               </div>
 
               {/* Password Input */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
                   Password
                 </label>
                 <div className="relative">
@@ -136,12 +147,12 @@ const Login = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter password (e.g., admin123)"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-11 text-sm font-semibold text-slate-700 placeholder-slate-400 focus:border-hospital-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-hospital-500 transition-all"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-11 pr-11 text-sm font-semibold text-slate-700 placeholder-slate-400 focus:border-hospital-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-hospital-500 transition-all"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-4 flex items-center text-slate-400 hover:text-slate-600"
+                    className="absolute inset-y-0 right-4 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
                   >
                     {showPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
                   </button>
@@ -168,7 +179,7 @@ const Login = () => {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full rounded-xl bg-gradient-to-r from-hospital-500 to-cyanic-500 py-3.5 text-sm font-bold text-white shadow-premium hover:shadow-premium-hover transition-all focus:outline-none focus:ring-2 focus:ring-hospital-500/50 flex items-center justify-center gap-2"
+                className="w-full rounded-xl bg-gradient-to-r from-hospital-500 to-cyanic-500 py-3 text-sm font-bold text-white shadow-premium hover:shadow-premium-hover transition-all focus:outline-none focus:ring-2 focus:ring-hospital-500/50 flex items-center justify-center gap-2 cursor-pointer"
               >
                 {isSubmitting ? (
                   <>
@@ -181,11 +192,34 @@ const Login = () => {
               </button>
             </form>
 
-            {/* Helper Credentials Box */}
-            <div className="mt-8 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-[11px] font-semibold text-slate-500 leading-relaxed">
-              <span className="text-slate-700 font-bold uppercase block mb-1">Demo Credentials:</span>
-              <p>Username: <code className="bg-white px-1 py-0.5 rounded border text-hospital-600 font-mono">admin</code></p>
-              <p>Password: <code className="bg-white px-1 py-0.5 rounded border text-hospital-600 font-mono">admin123</code></p>
+            {/* Quick Testing Login Controls */}
+            <div className="mt-6 border-t pt-4">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
+                Quick Role Tester
+              </span>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin('admin', 'admin123', 'Admin')}
+                  className="rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 py-1.5 px-3 text-xs font-bold text-slate-700 transition-all cursor-pointer"
+                >
+                  Admin Login
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin('receptionist', 'receptionist123', 'Receptionist')}
+                  className="rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 py-1.5 px-3 text-xs font-bold text-slate-700 transition-all cursor-pointer"
+                >
+                  Receptionist Login
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin('doctor', 'doctor123', 'Doctor')}
+                  className="rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 py-1.5 px-3 text-xs font-bold text-slate-700 transition-all cursor-pointer"
+                >
+                  Doctor Login
+                </button>
+              </div>
             </div>
           </motion.div>
         </div>
@@ -201,7 +235,7 @@ const Login = () => {
         <img
           src={loginBg}
           alt="Orthopedic Hospital"
-          className="absolute inset-0 h-full w-full object-cover opacity-80 scale-105"
+          className="absolute inset-0 h-full w-full object-cover opacity-85 scale-105"
         />
         {/* Soft overlay gradient */}
         <div className="absolute inset-0 bg-gradient-to-tr from-slate-950 via-slate-950/40 to-transparent"></div>
@@ -214,7 +248,7 @@ const Login = () => {
           <h2 className="text-3xl font-extrabold tracking-tight leading-snug">
             Empowering Orthopedic Care with Modern Operations.
           </h2>
-          <p className="mt-4 text-sm font-medium text-slate-300 leading-relaxed">
+          <p className="mt-4 text-sm font-semibold text-slate-300 leading-relaxed">
             Manage bone trauma surgeries, patient diagnostics, ward assignments, and instant bill calculations using a unified, responsive dashboard.
           </p>
         </div>

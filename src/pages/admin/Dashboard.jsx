@@ -1,40 +1,82 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useHospital } from '../../context/HospitalContext';
 import {
   Users,
   Calendar,
   IndianRupee,
+  Activity,
   Bed,
   ArrowUpRight,
-  ArrowDownRight,
   TrendingUp,
   Stethoscope,
-  Activity,
-  Receipt
+  Receipt,
+  PlusCircle
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip as ChartTooltip,
+  PieChart,
+  Pie,
+  Cell,
+  Legend
+} from 'recharts';
 import orthoIll from '../../assets/ortho_ill.png';
 
+// Modals
+import PatientModal from '../../components/modals/PatientModal';
+import AppointmentModal from '../../components/modals/AppointmentModal';
+import InvestigationModal from '../../components/modals/InvestigationModal';
+import { useNavigate } from 'react-router-dom';
+
 const Dashboard = () => {
-  const { patients, appointments, bills, beds, activities } = useHospital();
+  const {
+    patients,
+    appointments,
+    bills,
+    beds,
+    activities,
+    doctors,
+    receptionists,
+    investigations,
+    addPatient
+  } = useHospital();
+  
+  const navigate = useNavigate();
 
-  // Compute stats dynamically from state
-  const patientCount = patients.length;
-  const appointmentCount = appointments.length;
+  // Modal states
+  const [patientModalOpen, setPatientModalOpen] = useState(false);
+  const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
+  const [investigationModalOpen, setInvestigationModalOpen] = useState(false);
 
-  const totalRevenue = bills.reduce((acc, b) => acc + b.total, 0);
-  const formattedRevenue = new Intl.NumberFormat('en-IN', {
+  // Compute Stats
+  const totalPatients = patients.length + 1238; // base + dynamic
+  const totalAppointments = appointments.length + 323;
+
+  // Today's Date
+  const todayStr = '2026-06-21';
+
+  // Today's Revenue (bills dated today)
+  const todayBills = bills.filter((b) => b.date === todayStr);
+  const todayRevenueVal = todayBills.reduce((acc, b) => acc + b.total, 0);
+  const formattedTodayRevenue = new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
     maximumFractionDigits: 0
-  }).format(totalRevenue || 1245300);
+  }).format(todayRevenueVal || 3313); // fallback matching screenshot
 
-  const availableBeds = beds.filter((b) => b.status === 'Available').length;
+  // Today's Investigations Ordered (linked to visitHistory/appointments)
+  // Let's count mock investigations or active investigations today
+  const todayInvestigationsCount = 12 + bills.filter(b => b.billType === 'Investigations' && b.date === todayStr).length;
 
   const stats = [
     {
       title: 'Total Patients',
-      value: patientCount + 1238, // base + dynamic
+      value: totalPatients,
       change: '+12%',
       isPositive: true,
       timeframe: 'from last month',
@@ -44,7 +86,7 @@ const Dashboard = () => {
     },
     {
       title: 'Appointments',
-      value: appointmentCount + 323, // base + dynamic
+      value: totalAppointments,
       change: '+8%',
       isPositive: true,
       timeframe: 'from last week',
@@ -54,7 +96,7 @@ const Dashboard = () => {
     },
     {
       title: "Today's Revenue",
-      value: formattedRevenue,
+      value: formattedTodayRevenue,
       change: '+15%',
       isPositive: true,
       timeframe: 'from yesterday',
@@ -63,20 +105,43 @@ const Dashboard = () => {
       bgLight: 'bg-emerald-50'
     },
     {
-      title: 'Available Beds',
-      value: `${availableBeds} / ${beds.length}`,
-      change: '-2',
-      isPositive: false,
-      timeframe: 'occupied today',
-      icon: Bed,
-      color: 'from-cyanic-500 to-teal-400',
-      bgLight: 'bg-cyan-50'
+      title: "Today's Investigations",
+      value: todayInvestigationsCount,
+      change: '+24%',
+      isPositive: true,
+      timeframe: 'tests executed',
+      icon: Activity,
+      color: 'from-purple-500 to-indigo-500',
+      bgLight: 'bg-purple-50'
     }
   ];
 
-  // SVG Chart constants
-  const lineChartPoints = "30,120 70,80 110,130 150,70 190,110 230,50 270,90 310,40 350,80 390,30 430,70 470,20";
-  const areaChartPoints = "30,120 70,80 110,130 150,70 190,110 230,50 270,90 310,40 350,80 390,30 430,70 470,20 470,150 30,150";
+  // Directory counts
+  const activeDoctorsCount = doctors.filter((d) => d.status === 'Active').length;
+  const activeReceptionistsCount = receptionists.filter((r) => r.status === 'Active').length;
+  const totalBedsCount = beds.length;
+  const availableBedsCount = beds.filter((b) => b.status === 'Available').length;
+
+  // Chart Data
+  const trendData = [
+    { name: 'Mon', appointments: 28, revenue: 38000 },
+    { name: 'Tue', appointments: 35, revenue: 42000 },
+    { name: 'Wed', appointments: 30, revenue: 31000 },
+    { name: 'Thu', appointments: 48, revenue: 58000 },
+    { name: 'Fri', appointments: 42, revenue: 49000 },
+    { name: 'Sat', appointments: 25, revenue: 28000 },
+    { name: 'Sun', appointments: 15, revenue: 12000 }
+  ];
+
+  const pieData = [
+    { name: 'OPD Consultations', value: 45, color: '#0ea5e9' },
+    { name: 'Lab Investigations', value: 35, color: '#8b5cf6' },
+    { name: 'IPD Bed Charges', value: 20, color: '#10b981' }
+  ];
+
+  const handleSavePatient = (patientData) => {
+    addPatient(patientData);
+  };
 
   return (
     <div className="space-y-8">
@@ -84,28 +149,29 @@ const Dashboard = () => {
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-hospital-600 via-hospital-500 to-cyanic-500 p-8 text-white shadow-premium"
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-hospital-600 via-hospital-500 to-cyanic-500 p-6 md:p-8 text-white shadow-premium"
       >
         <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div className="max-w-xl">
             <span className="inline-block rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white/90 backdrop-blur-sm mb-3">
               Admin Control Center
             </span>
-            <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">
+            <h2 className="text-xl md:text-2xl font-extrabold tracking-tight">
               Rajahmundry Orthopedic Hospital Management
             </h2>
-            <p className="mt-2 text-sm text-slate-100 font-medium leading-relaxed">
+            <p className="mt-2 text-xs md:text-sm text-slate-100 font-medium leading-relaxed">
               Monitor orthopedics staff availability, schedule joint-replacement consultations, allocate patient wards, and audit billing metrics in real-time.
             </p>
           </div>
           <div className="shrink-0 hidden md:block">
-            <img src={orthoIll} alt="Illustration" className="h-32 w-auto object-contain opacity-90" />
+            <img src={orthoIll} alt="Illustration" className="h-28 w-auto object-contain opacity-95" />
           </div>
         </div>
-        {/* Decorative subtle background graphics */}
         <div className="absolute top-0 right-0 h-full w-1/3 bg-white/5 skew-x-12 translate-x-10 pointer-events-none"></div>
       </motion.div>
 
+      {/* Quick Actions Panel */}
+      
       {/* KPI Cards Grid */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat, idx) => {
@@ -113,10 +179,10 @@ const Dashboard = () => {
           return (
             <motion.div
               key={stat.title}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: idx * 0.05 }}
-              className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium hover:shadow-premium-hover transition-all group cursor-pointer"
+              className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium hover:shadow-premium-hover transition-all group"
             >
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -131,16 +197,8 @@ const Dashboard = () => {
                   {stat.value}
                 </span>
                 <div className="mt-2 flex items-center gap-1.5">
-                  <span
-                    className={`flex items-center gap-0.5 text-xs font-bold ${
-                      stat.isPositive ? 'text-emerald-600' : 'text-rose-500'
-                    }`}
-                  >
-                    {stat.isPositive ? (
-                      <ArrowUpRight className="h-3.5 w-3.5" />
-                    ) : (
-                      <ArrowDownRight className="h-3.5 w-3.5" />
-                    )}
+                  <span className="flex items-center gap-0.5 text-xs font-bold text-emerald-600">
+                    <ArrowUpRight className="h-3.5 w-3.5" />
                     {stat.change}
                   </span>
                   <span className="text-xs font-medium text-slate-400">
@@ -153,9 +211,9 @@ const Dashboard = () => {
         })}
       </div>
 
-      {/* Graphs/Analytics Grid */}
+      {/* Recharts Analytics Grid */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Line Chart - OPD Appointments */}
+        {/* Area Chart - Appointment Trends */}
         <div className="lg:col-span-2 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium">
           <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
             <div>
@@ -168,56 +226,21 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div className="relative h-64 w-full">
-            <svg viewBox="0 0 500 160" className="h-full w-full overflow-visible">
-              {/* Grid Lines */}
-              <line x1="30" y1="20" x2="470" y2="20" stroke="#f1f5f9" strokeWidth="1" />
-              <line x1="30" y1="52.5" x2="470" y2="52.5" stroke="#f1f5f9" strokeWidth="1" />
-              <line x1="30" y1="85" x2="470" y2="85" stroke="#f1f5f9" strokeWidth="1" />
-              <line x1="30" y1="117.5" x2="470" y2="117.5" stroke="#f1f5f9" strokeWidth="1" />
-              <line x1="30" y1="150" x2="470" y2="150" stroke="#e2e8f0" strokeWidth="1" />
-
-              {/* Area Gradient */}
-              <defs>
-                <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-
-              {/* Area path */}
-              <polygon points={areaChartPoints} fill="url(#chartGradient)" />
-
-              {/* Trend Path */}
-              <polyline
-                fill="none"
-                stroke="#0ea5e9"
-                strokeWidth="3.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                points={lineChartPoints}
-              />
-
-              {/* Grid labels */}
-              <text x="12" y="24" className="text-[9px] font-bold fill-slate-400">100</text>
-              <text x="12" y="89" className="text-[9px] font-bold fill-slate-400">50</text>
-              <text x="12" y="154" className="text-[9px] font-bold fill-slate-400">0</text>
-
-              <text x="30" y="172" className="text-[10px] font-bold fill-slate-400 text-center">Mon</text>
-              <text x="110" y="172" className="text-[10px] font-bold fill-slate-400 text-center">Wed</text>
-              <text x="190" y="172" className="text-[10px] font-bold fill-slate-400 text-center">Fri</text>
-              <text x="270" y="172" className="text-[10px] font-bold fill-slate-400 text-center">Sun</text>
-              <text x="350" y="172" className="text-[10px] font-bold fill-slate-400 text-center">Tue</text>
-              <text x="430" y="172" className="text-[10px] font-bold fill-slate-400 text-center">Thu</text>
-
-              {/* Interactive Dots */}
-              <circle cx="30" cy="120" r="5" fill="#ffffff" stroke="#0ea5e9" strokeWidth="2.5" />
-              <circle cx="150" cy="70" r="5" fill="#ffffff" stroke="#0ea5e9" strokeWidth="2.5" />
-              <circle cx="230" cy="50" r="5" fill="#ffffff" stroke="#0ea5e9" strokeWidth="2.5" />
-              <circle cx="310" cy="40" r="5" fill="#ffffff" stroke="#0ea5e9" strokeWidth="2.5" />
-              <circle cx="390" cy="30" r="5" fill="#ffffff" stroke="#0ea5e9" strokeWidth="2.5" />
-              <circle cx="470" cy="20" r="5" fill="#ffffff" stroke="#0ea5e9" strokeWidth="2.5" />
-            </svg>
+          <div className="h-64 w-full text-xs">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorApt" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.2}/>
+                    <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="name" stroke="#94a3b8" />
+                <YAxis stroke="#94a3b8" />
+                <ChartTooltip />
+                <Area type="monotone" dataKey="appointments" stroke="#0ea5e9" strokeWidth={3} fillOpacity={1} fill="url(#colorApt)" />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
@@ -228,84 +251,35 @@ const Dashboard = () => {
             <p className="text-xs text-slate-400 font-semibold">Monthly income streams breakdown</p>
           </div>
 
-          <div className="relative flex items-center justify-center h-44 w-full">
-            <svg viewBox="0 0 100 100" className="h-full w-full transform -rotate-90">
-              {/* Background circle */}
-              <circle cx="50" cy="50" r="35" fill="transparent" stroke="#f1f5f9" strokeWidth="12" />
-
-              {/* OPD segment - 42% (stroke-dasharray="42 100") */}
-              <circle
-                cx="50"
-                cy="50"
-                r="35"
-                fill="transparent"
-                stroke="#0ea5e9"
-                strokeWidth="12"
-                strokeDasharray="92.3 220"
-                strokeDashoffset="0"
-              />
-
-              {/* IPD segment - 33% (stroke-dashoffset="-92.3") */}
-              <circle
-                cx="50"
-                cy="50"
-                r="35"
-                fill="transparent"
-                stroke="#10b981"
-                strokeWidth="12"
-                strokeDasharray="72.5 220"
-                strokeDashoffset="-92.3"
-              />
-
-              {/* Pharmacy - 15% (stroke-dashoffset="-164.8") */}
-              <circle
-                cx="50"
-                cy="50"
-                r="35"
-                fill="transparent"
-                stroke="#f59e0b"
-                strokeWidth="12"
-                strokeDasharray="33 220"
-                strokeDashoffset="-164.8"
-              />
-
-              {/* Investigations - 10% (stroke-dashoffset="-197.8") */}
-              <circle
-                cx="50"
-                cy="50"
-                r="35"
-                fill="transparent"
-                stroke="#8b5cf6"
-                strokeWidth="12"
-                strokeDasharray="22 220"
-                strokeDashoffset="-197.8"
-              />
-            </svg>
-
-            {/* Total value text in the center */}
-            <div className="absolute flex flex-col items-center justify-center">
-              <span className="text-xs font-bold text-slate-400">Total</span>
-              <span className="text-base font-extrabold text-slate-800">₹12.45L</span>
-            </div>
+          <div className="h-48 w-full flex items-center justify-center">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {pieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <ChartTooltip />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 mt-4 text-[11px] font-bold text-slate-500">
-            <div className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-hospital-500"></span>
-              <span className="truncate">OPD - 42%</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
-              <span className="truncate">IPD - 33%</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-amber-500"></span>
-              <span className="truncate">Pharmacy - 15%</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-purple-500"></span>
-              <span className="truncate">Tests - 10%</span>
-            </div>
+          <div className="grid grid-cols-3 gap-1 mt-2 text-[10px] font-bold text-slate-500">
+            {pieData.map((d) => (
+              <div key={d.name} className="flex flex-col items-center text-center">
+                <span className="h-2 w-2 rounded-full mb-1" style={{ backgroundColor: d.color }}></span>
+                <span className="truncate w-full">{d.name}</span>
+                <span className="text-slate-800 font-extrabold">{d.value}%</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -322,7 +296,7 @@ const Dashboard = () => {
           </div>
 
           <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto pr-1">
-            {activities.map((act) => {
+            {activities.slice(0, 5).map((act) => {
               let Icon = Activity;
               let color = 'text-blue-500 bg-blue-50';
               if (act.type === 'patient') {
@@ -375,7 +349,7 @@ const Dashboard = () => {
               </div>
               <div>
                 <span className="text-xs font-bold text-slate-400 block leading-none">Doctors</span>
-                <span className="text-xl font-extrabold text-slate-800">18 Panelists</span>
+                <span className="text-sm font-extrabold text-slate-800">{activeDoctorsCount} Panelists</span>
               </div>
             </div>
 
@@ -385,7 +359,7 @@ const Dashboard = () => {
               </div>
               <div>
                 <span className="text-xs font-bold text-slate-400 block leading-none">Reception Staff</span>
-                <span className="text-xl font-extrabold text-slate-800">8 Members</span>
+                <span className="text-sm font-extrabold text-slate-800">{activeReceptionistsCount} Members</span>
               </div>
             </div>
 
@@ -395,22 +369,39 @@ const Dashboard = () => {
               </div>
               <div>
                 <span className="text-xs font-bold text-slate-400 block leading-none">Total Beds</span>
-                <span className="text-xl font-extrabold text-slate-800">24 Allocated</span>
+                <span className="text-sm font-extrabold text-slate-800">{totalBedsCount} Allocated</span>
               </div>
             </div>
 
             <div className="flex items-center gap-3.5 p-4 rounded-xl border border-slate-100 bg-slate-50/50">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500 text-white shadow-premium">
-                <Receipt className="h-5 w-5" />
+                <Bed className="h-5 w-5" />
               </div>
               <div>
-                <span className="text-xs font-bold text-slate-400 block leading-none">Paid Bills</span>
-                <span className="text-xl font-extrabold text-slate-800">98% Success</span>
+                <span className="text-xs font-bold text-slate-400 block leading-none">Available Beds</span>
+                <span className="text-sm font-extrabold text-slate-800">{availableBedsCount} Vacant</span>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Global Modals for Quick Actions */}
+      <PatientModal
+        isOpen={patientModalOpen}
+        onClose={() => setPatientModalOpen(false)}
+        onSave={handleSavePatient}
+      />
+      
+      <AppointmentModal
+        isOpen={appointmentModalOpen}
+        onClose={() => setAppointmentModalOpen(false)}
+      />
+
+      <InvestigationModal
+        isOpen={investigationModalOpen}
+        onClose={() => setInvestigationModalOpen(false)}
+      />
     </div>
   );
 };

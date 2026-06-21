@@ -1,14 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import {
-  INITIAL_PATIENTS,
-  INITIAL_DOCTORS,
-  INITIAL_RECEPTIONISTS,
-  INITIAL_INVESTIGATIONS,
-  INITIAL_APPOINTMENTS,
-  INITIAL_BEDS,
-  INITIAL_BILLS,
-  INITIAL_ACTIVITIES
-} from '../constants/mockData';
+import { INITIAL_PATIENTS } from '../mock-data/patients';
+import { INITIAL_DOCTORS } from '../mock-data/doctors';
+import { INITIAL_RECEPTIONISTS } from '../mock-data/receptionists';
+import { INITIAL_APPOINTMENTS } from '../mock-data/appointments';
+import { INITIAL_INVESTIGATIONS } from '../mock-data/investigations';
+import { INITIAL_BILLS } from '../mock-data/bills';
+import { INITIAL_BEDS } from '../mock-data/beds';
+import { INITIAL_VISIT_HISTORY } from '../mock-data/visitHistory';
+import { INITIAL_ACTIVITIES } from '../constants/mockData';
 
 const HospitalContext = createContext(null);
 
@@ -51,6 +50,11 @@ export const HospitalProvider = ({ children }) => {
   const [activities, setActivities] = useState(() => {
     const saved = localStorage.getItem('roh_activities');
     return saved ? JSON.parse(saved) : INITIAL_ACTIVITIES;
+  });
+
+  const [visitHistory, setVisitHistory] = useState(() => {
+    const saved = localStorage.getItem('roh_visit_history');
+    return saved ? JSON.parse(saved) : INITIAL_VISIT_HISTORY;
   });
 
   const [toasts, setToasts] = useState([]);
@@ -276,32 +280,288 @@ export const HospitalProvider = ({ children }) => {
   };
 
   // Bed Allocation
-  const assignBed = (bedNo, patientId) => {
+  const assignBed = (bedNo, patientId, dateStr) => {
     const p = patients.find((p) => p.id === patientId);
     if (!p) {
       showToast('Patient not found!', 'error');
       return;
     }
+    const admissionDate = dateStr || new Date().toISOString().split('T')[0];
     setBeds((prev) =>
       prev.map((b) =>
-        b.bedNo === bedNo ? { ...b, status: 'Occupied', patientId, patientName: p.name } : b
+        b.bedNo === bedNo
+          ? {
+              ...b,
+              status: 'Occupied',
+              patientId,
+              patientName: p.name,
+              admissionDate
+            }
+          : b
       )
     );
     addActivity(`Admitted ${p.name} to Ward Bed ${bedNo}`, 'bed');
-    showToast(`Bed ${bedNo} assigned to ${p.name}`);
+    showToast(`Bed ${bedNo} allocated to ${p.name} successfully!`);
+  };
+
+  const transferBed = (bedNo, newBedNo) => {
+    const currentBed = beds.find((b) => b.bedNo === bedNo);
+    if (!currentBed || currentBed.status !== 'Occupied') {
+      showToast('Source bed is not occupied!', 'error');
+      return;
+    }
+    const targetBed = beds.find((b) => b.bedNo === newBedNo);
+    if (!targetBed || targetBed.status !== 'Available') {
+      showToast('Target bed is not available!', 'error');
+      return;
+    }
+
+    setBeds((prev) =>
+      prev.map((b) => {
+        if (b.bedNo === bedNo) {
+          return {
+            ...b,
+            status: 'Available',
+            patientId: '',
+            patientName: '',
+            admissionDate: ''
+          };
+        }
+        if (b.bedNo === newBedNo) {
+          return {
+            ...b,
+            status: 'Occupied',
+            patientId: currentBed.patientId,
+            patientName: currentBed.patientName,
+            admissionDate: currentBed.admissionDate || new Date().toISOString().split('T')[0]
+          };
+        }
+        return b;
+      })
+    );
+    addActivity(
+      `Transferred patient ${currentBed.patientName} from Bed ${bedNo} to Bed ${newBedNo}`,
+      'bed'
+    );
+    showToast(`Patient transferred from Bed ${bedNo} to Bed ${newBedNo} successfully!`);
   };
 
   const releaseBed = (bedNo) => {
     const b = beds.find((bd) => bd.bedNo === bedNo);
     setBeds((prev) =>
       prev.map((b) =>
-        b.bedNo === bedNo ? { ...b, status: 'Available', patientId: '', patientName: '' } : b
+        b.bedNo === bedNo
+          ? { ...b, status: 'Available', patientId: '', patientName: '', admissionDate: '' }
+          : b
       )
     );
     if (b && b.patientName) {
       addActivity(`Discharged patient ${b.patientName} from Bed ${bedNo}`, 'bed');
-      showToast(`Bed ${bedNo} is now vacant.`);
+      showToast(`Discharged ${b.patientName}. Bed ${bedNo} is now vacant.`);
     }
+  };
+
+  // Get or Create Today's Visit helper
+  const getOrCreateTodayVisit = (prevHistory, patientId, doctorName = 'Dr. Arjun Kumar') => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const patientRecord = prevHistory.find((r) => r.patientId === patientId);
+
+    const emptyVisit = {
+      id: `VIS-${Date.now()}`,
+      visitDate: todayStr,
+      appointmentId: '', 
+      doctorName,
+      doctorId: 'DOC001',
+      appointmentType: 'Consultation',
+      billRefNo: '',
+      vitals: [],
+      investigations: [],
+      prescriptions: [],
+      summary: null
+    };
+
+    if (patientRecord) {
+      const todayVisit = patientRecord.visits.find((v) => v.visitDate === todayStr);
+      if (todayVisit) {
+        return prevHistory;
+      } else {
+        return prevHistory.map((r) => {
+          if (r.patientId === patientId) {
+            return {
+              ...r,
+              visits: [emptyVisit, ...r.visits]
+            };
+          }
+          return r;
+        });
+      }
+    } else {
+      return [
+        {
+          patientId,
+          visits: [emptyVisit]
+        },
+        ...prevHistory
+      ];
+    }
+  };
+
+  // Vitals & Clinical History EMR Workflows
+  const addVitals = (patientId, vitals, addedBy = 'Dr. Arjun Kumar') => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const currentTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    
+    setVisitHistory((prev) => {
+      const initialized = getOrCreateTodayVisit(prev, patientId, addedBy);
+      return initialized.map((r) => {
+        if (r.patientId === patientId) {
+          return {
+            ...r,
+            visits: r.visits.map((v) =>
+              v.visitDate === todayStr
+                ? {
+                    ...v,
+                    vitals: [
+                      ...(v.vitals || []),
+                      {
+                        time: currentTime,
+                        date: todayStr,
+                        addedBy,
+                        ...vitals
+                      }
+                    ]
+                  }
+                : v
+            )
+          };
+        }
+        return r;
+      });
+    });
+    addActivity(`Recorded vitals for patient ${patientId}`, 'medical');
+    showToast(`Vitals recorded successfully!`);
+  };
+
+  const orderInvestigation = (patientId, test, orderedBy = 'Dr. Arjun Kumar') => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const currentTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const newOrder = {
+      testId: test.id || `INV-${Date.now()}`,
+      testName: test.testName,
+      orderedBy,
+      orderedDate: todayStr,
+      orderedTime: currentTime,
+      status: 'Ordered'
+    };
+
+    setVisitHistory((prev) => {
+      const initialized = getOrCreateTodayVisit(prev, patientId, orderedBy);
+      return initialized.map((r) => {
+        if (r.patientId === patientId) {
+          return {
+            ...r,
+            visits: r.visits.map((v) =>
+              v.visitDate === todayStr
+                ? {
+                    ...v,
+                    investigations: [
+                      ...(v.investigations || []),
+                      newOrder
+                    ]
+                  }
+                : v
+            )
+          };
+        }
+        return r;
+      });
+    });
+    addActivity(`Ordered investigation ${test.testName} for patient ${patientId}`, 'medical');
+    showToast(`Investigation ordered successfully!`);
+  };
+
+  const addPrescription = (patientId, prescriptionList, addedBy = 'Dr. Arjun Kumar') => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const currentTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+    const newRxItems = prescriptionList.map((item) => ({
+      ...item,
+      addedBy,
+      date: todayStr,
+      time: currentTime
+    }));
+
+    setVisitHistory((prev) => {
+      const initialized = getOrCreateTodayVisit(prev, patientId, addedBy);
+      return initialized.map((r) => {
+        if (r.patientId === patientId) {
+          return {
+            ...r,
+            visits: r.visits.map((v) =>
+              v.visitDate === todayStr
+                ? {
+                    ...v,
+                    prescriptions: [
+                      ...(v.prescriptions || []),
+                      ...newRxItems
+                    ]
+                  }
+                : v
+            )
+          };
+        }
+        return r;
+      });
+    });
+    showToast(`Prescription saved successfully!`);
+  };
+
+  const addConsultationSummary = (patientId, summary, addedBy = 'Dr. Arjun Kumar') => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const currentTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+    const newSummary = {
+      ...summary,
+      addedBy,
+      date: todayStr,
+      time: currentTime
+    };
+
+    setVisitHistory((prev) => {
+      const initialized = getOrCreateTodayVisit(prev, patientId, addedBy);
+      return initialized.map((r) => {
+        if (r.patientId === patientId) {
+          return {
+            ...r,
+            visits: r.visits.map((v) =>
+              v.visitDate === todayStr
+                ? {
+                    ...v,
+                    summary: newSummary
+                  }
+                : v
+            )
+          };
+        }
+        return r;
+      });
+    });
+
+    setPatients((prev) =>
+      prev.map((p) => (p.id === patientId ? { ...p, disease: summary.diagnosis } : p))
+    );
+
+    showToast(`Consultation summary saved!`);
+  };
+
+  const addConsultationNotes = (patientId, notes, doctorName = 'Dr. Arjun Kumar') => {
+    addConsultationSummary(patientId, {
+      symptoms: 'Follow-up consultation notes recorded.',
+      findings: 'Regular examination.',
+      diagnosis: 'Osteoarthritis Knee',
+      advice: notes,
+      followUp: 'As advised'
+    }, doctorName);
   };
 
   // Billing CRUD
@@ -338,6 +598,7 @@ export const HospitalProvider = ({ children }) => {
     beds,
     bills,
     activities,
+    visitHistory,
     toasts,
     showToast,
     addPatient,
@@ -358,7 +619,13 @@ export const HospitalProvider = ({ children }) => {
     editInvestigation,
     deleteInvestigation,
     assignBed,
+    transferBed,
     releaseBed,
+    addVitals,
+    orderInvestigation,
+    addPrescription,
+    addConsultationSummary,
+    addConsultationNotes,
     addBill,
     updateBillStatus
   };

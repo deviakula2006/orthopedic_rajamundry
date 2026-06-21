@@ -1,8 +1,8 @@
 import React from 'react';
 import AppLayout from './AppLayout';
 
-const AdminLayout = () => {
+const ReceptionistLayout = () => {
   return <AppLayout />;
 };
 
-export default AdminLayout;
+export default ReceptionistLayout;

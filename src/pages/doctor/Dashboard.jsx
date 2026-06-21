@@ -1,0 +1,232 @@
+import React, { useState } from 'react';
+import { useHospital } from '../../context/HospitalContext';
+import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { Calendar, Users, Clock, CheckCircle } from 'lucide-react';
+import StatusBadge from '../../components/common/StatusBadge';
+
+const DoctorDashboard = () => {
+  const { appointments, patients } = useHospital();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  // Active filter state: 'all' | 'pending' | 'completed'
+  const [activeFilter, setActiveFilter] = useState('pending');
+
+  const docId = user?.doctorId || 'DOC001';
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  // Filter doctor appointments for today. If no appointments are found for today
+  // (e.g. due to outdated localStorage cache), dynamically treat all doctor
+  // appointments as today's appointments so that the queue is always populated.
+  const docAppointmentsForToday = appointments.filter(
+    (a) => a.doctorId === docId && a.date === todayStr
+  );
+
+  const docAppointments = docAppointmentsForToday.length > 0
+    ? docAppointmentsForToday
+    : appointments.filter((a) => a.doctorId === docId).map((a) => ({
+        ...a,
+        date: todayStr
+      }));
+
+  // Compute metrics
+  const totalAppointments = docAppointments.length;
+  
+  const pendingAppointments = docAppointments.filter(
+    (a) => a.status === 'Checked In' || a.status === 'Scheduled' || a.status === 'In Consultation'
+  );
+  
+  const completedAppointments = docAppointments.filter(
+    (a) => a.status === 'Completed'
+  );
+
+  // Filter patient list to show
+  const filteredAppointments = docAppointments.filter((a) => {
+    if (activeFilter === 'pending') {
+      return a.status === 'Checked In' || a.status === 'Scheduled' || a.status === 'In Consultation';
+    }
+    if (activeFilter === 'completed') {
+      return a.status === 'Completed';
+    }
+    return true; // 'all'
+  });
+
+  return (
+    <div className="space-y-6">
+      
+      {/* Clinic Welcome & Date Panel - Premium Themed */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-gradient-to-r from-hospital-700 via-hospital-600 to-blue-700 rounded-2xl p-6 text-white shadow-premium">
+        <div>
+          <span className="inline-block rounded bg-white/20 text-[10px] font-bold text-white px-2.5 py-1 uppercase mb-2 backdrop-blur-sm">
+            ROH Doctor Workstation 2.0
+          </span>
+          <h2 className="text-xl font-black tracking-tight leading-none">
+            Welcome, Dr. {user?.name || 'Arjun Kumar'}
+          </h2>
+          <p className="text-xs text-blue-100 font-semibold mt-1.5 opacity-90">
+            Consultation desk is active. Select any patient card to review history or record notes.
+          </p>
+        </div>
+        <div className="flex items-center gap-3 shrink-0 bg-white/10 border border-white/20 rounded-xl px-4 py-2.5 backdrop-blur-sm">
+          <Calendar className="h-5 w-5 text-blue-200" />
+          <span className="text-xs font-extrabold">
+            {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })}
+          </span>
+        </div>
+      </div>
+
+      {/* 3 Clickable KPI Cards - Premium Themed Filter Triggers */}
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
+        {/* Card 1: Today's Appointments */}
+        <button
+          type="button"
+          onClick={() => setActiveFilter('all')}
+          className={`text-left rounded-2xl border p-5 shadow-premium transition-all duration-300 transform cursor-pointer ${
+            activeFilter === 'all'
+              ? 'bg-gradient-to-br from-hospital-600 to-blue-700 border-hospital-600 text-white shadow-md scale-[1.01] -translate-y-0.5'
+              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-hospital-200'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className={`text-[10px] font-black uppercase tracking-wider ${activeFilter === 'all' ? 'text-blue-100' : 'text-slate-400'}`}>Today's Appointments</span>
+            <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${activeFilter === 'all' ? 'bg-white/20 text-white' : 'bg-blue-50 text-hospital-600 border border-blue-100'}`}>
+              <Users className="h-4.5 w-4.5" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <span className="text-3xl font-black block leading-none">{totalAppointments}</span>
+            <span className={`text-[10px] font-bold block mt-1.5 ${activeFilter === 'all' ? 'text-blue-100' : 'text-slate-400'}`}>Total patient consultations</span>
+          </div>
+        </button>
+
+        {/* Card 2: Pending Consultations */}
+        <button
+          type="button"
+          onClick={() => setActiveFilter('pending')}
+          className={`text-left rounded-2xl border p-5 shadow-premium transition-all duration-300 transform cursor-pointer ${
+            activeFilter === 'pending'
+              ? 'bg-gradient-to-br from-amber-500 to-orange-600 border-amber-500 text-white shadow-md scale-[1.01] -translate-y-0.5'
+              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-amber-200'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className={`text-[10px] font-black uppercase tracking-wider ${activeFilter === 'pending' ? 'text-amber-100' : 'text-slate-400'}`}>Pending Consultations</span>
+            <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${activeFilter === 'pending' ? 'bg-white/20 text-white' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
+              <Clock className="h-4.5 w-4.5" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <span className="text-3xl font-black block leading-none">{pendingAppointments.length}</span>
+            <span className={`text-[10px] font-bold block mt-1.5 ${activeFilter === 'pending' ? 'text-amber-100' : 'text-slate-400'}`}>In waitlist queue</span>
+          </div>
+        </button>
+
+        {/* Card 3: Completed Consultations */}
+        <button
+          type="button"
+          onClick={() => setActiveFilter('completed')}
+          className={`text-left rounded-2xl border p-5 shadow-premium transition-all duration-300 transform cursor-pointer ${
+            activeFilter === 'completed'
+              ? 'bg-gradient-to-br from-emerald-500 to-teal-600 border-emerald-500 text-white shadow-md scale-[1.01] -translate-y-0.5'
+              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-emerald-200'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className={`text-[10px] font-black uppercase tracking-wider ${activeFilter === 'completed' ? 'text-emerald-100' : 'text-slate-400'}`}>Completed Consultations</span>
+            <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${activeFilter === 'completed' ? 'bg-white/20 text-white' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+              <CheckCircle className="h-4.5 w-4.5" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <span className="text-3xl font-black block leading-none">{completedAppointments.length}</span>
+            <span className={`text-[10px] font-bold block mt-1.5 ${activeFilter === 'completed' ? 'text-emerald-100' : 'text-slate-400'}`}>Completed today</span>
+          </div>
+        </button>
+      </div>
+
+      {/* Patient Cards Grid Section */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between border-b pb-2">
+          <h3 className="text-xs font-black text-slate-500 uppercase tracking-wider">
+            Patient Consultation Queue ({filteredAppointments.length})
+          </h3>
+          <span className="text-[10px] font-black text-hospital-600 uppercase tracking-wider bg-blue-50 border border-blue-100 rounded px-2 py-0.5">
+            Filter: {activeFilter.toUpperCase()}
+          </span>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filteredAppointments.map((apt) => {
+            const pat = patients.find((p) => p.id === apt.patientId) || {};
+            
+            // Priority-based card border and complaint highlights
+            let leftBorderColor = 'border-l-sky-400';
+            let complaintBgColor = 'bg-sky-50/60 border-sky-100/60';
+            let complaintLabelColor = 'text-sky-500';
+            
+            if (apt.priority === 'Emergency') {
+              leftBorderColor = 'border-l-rose-500 border-l-[5px]';
+              complaintBgColor = 'bg-rose-50/60 border-rose-100/60';
+              complaintLabelColor = 'text-rose-600 font-extrabold';
+            } else if (apt.priority === 'Follow-up') {
+              leftBorderColor = 'border-l-amber-500 border-l-[5px]';
+              complaintBgColor = 'bg-amber-50/60 border-amber-100/60';
+              complaintLabelColor = 'text-amber-600 font-extrabold';
+            } else {
+              leftBorderColor = 'border-l-sky-500 border-l-[5px]';
+            }
+
+            return (
+              <div
+                key={apt.id}
+                onClick={() => navigate(`/doctor/patient/${apt.patientId}`)}
+                className={`border border-slate-200 bg-white rounded-2xl p-5 shadow-premium hover:shadow-premium-hover transition-all duration-300 cursor-pointer flex flex-col justify-between h-[210px] active:scale-[0.99] group border-l-4 ${leftBorderColor} hover:-translate-y-0.5`}
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h4 className="text-base font-black text-slate-800 group-hover:text-hospital-600 transition-colors leading-tight truncate">
+                        {apt.patientName}
+                      </h4>
+                      <span className="text-[10px] font-bold text-slate-400 block mt-1 uppercase tracking-wide">
+                        ID: {apt.patientId} &bull; {pat.gender} &bull; {pat.age} Yrs
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-black text-slate-600 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-lg shrink-0 whitespace-nowrap">
+                      {apt.time}
+                    </span>
+                  </div>
+
+                  {/* High Contrast Highlighted Chief Complaint Block */}
+                  <div className={`mt-3 border rounded-xl p-3 shadow-inner ${complaintBgColor}`}>
+                    <span className={`text-[8px] font-black uppercase tracking-wider block ${complaintLabelColor}`}>
+                      {apt.priority === 'Emergency' ? '⚠️ Emergency Complaint' : 'Chief Complaint'}
+                    </span>
+                    <p className="text-xs font-extrabold text-slate-700 line-clamp-2 mt-0.5 leading-snug">
+                      {pat.chiefComplaint || apt.chiefComplaint || 'Knee pain checkup'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-2">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Slot: {apt.type}</span>
+                  <StatusBadge status={apt.status} />
+                </div>
+              </div>
+            );
+          })}
+
+          {filteredAppointments.length === 0 && (
+            <div className="col-span-full border border-dashed border-slate-200 bg-white rounded-2xl py-12 text-center text-xs font-bold text-slate-400">
+              No patients found in this queue state.
+            </div>
+          )}
+        </div>
+      </div>
+
+    </div>
+  );
+};
+
+export default DoctorDashboard;

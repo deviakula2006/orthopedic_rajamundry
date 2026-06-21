@@ -1,94 +1,57 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useHospital } from '../../context/HospitalContext';
 import { Table } from '../../components/ui/Table';
 import { Modal } from '../../components/ui/Modal';
-import { Plus, Edit2, Trash2, Eye, FileText } from 'lucide-react';
+import { Plus, Eye, Edit, Trash2, Calendar, UserPlus, Search, UserCheck } from 'lucide-react';
+import ThreeDotMenu from '../../components/common/ThreeDotMenu';
+import ConfirmationModal from '../../components/common/ConfirmationModal';
+
+// Modals
+import PatientModal from '../../components/modals/PatientModal';
+import AppointmentModal from '../../components/modals/AppointmentModal';
 
 const Patients = () => {
   const { patients, addPatient, editPatient, deletePatient } = useHospital();
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [patientModalOpen, setPatientModalOpen] = useState(false);
+  const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [viewModalOpen, setViewModalOpen] = useState(false);
   
-  // Modal states
-  const [isAddOpen, setIsAddOpen] = useState(false);
-  const [isEditOpen, setIsEditOpen] = useState(false);
-  const [isViewOpen, setIsViewOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
+  const [selectedPatientId, setSelectedPatientId] = useState('');
 
-  // Form states
-  const [formData, setFormData] = useState({
-    name: '',
-    age: '',
-    gender: 'Male',
-    phone: '',
-    bloodGroup: 'O+',
-    address: '',
-    disease: ''
-  });
-
-  const handleOpenAdd = () => {
-    setFormData({
-      name: '',
-      age: '',
-      gender: 'Male',
-      phone: '',
-      bloodGroup: 'O+',
-      address: '',
-      disease: ''
-    });
-    setIsAddOpen(true);
-  };
-
-  const handleOpenEdit = (patient) => {
-    setSelectedPatient(patient);
-    setFormData({
-      name: patient.name,
-      age: patient.age,
-      gender: patient.gender,
-      phone: patient.phone,
-      bloodGroup: patient.bloodGroup || 'O+',
-      address: patient.address || '',
-      disease: patient.disease || ''
-    });
-    setIsEditOpen(true);
-  };
-
-  const handleOpenView = (patient) => {
-    setSelectedPatient(patient);
-    setIsViewOpen(true);
-  };
-
-  const handleAddSubmit = (e) => {
-    e.preventDefault();
-    addPatient({
-      name: formData.name,
-      age: parseInt(formData.age),
-      gender: formData.gender,
-      phone: formData.phone,
-      bloodGroup: formData.bloodGroup,
-      address: formData.address,
-      disease: formData.disease
-    });
-    setIsAddOpen(false);
-  };
-
-  const handleEditSubmit = (e) => {
-    e.preventDefault();
-    editPatient(selectedPatient.id, {
-      name: formData.name,
-      age: parseInt(formData.age),
-      gender: formData.gender,
-      phone: formData.phone,
-      bloodGroup: formData.bloodGroup,
-      address: formData.address,
-      disease: formData.disease
-    });
-    setIsEditOpen(false);
-  };
-
-  const handleDelete = (id) => {
-    if (window.confirm("Are you sure you want to delete this patient's record?")) {
-      deletePatient(id);
+  // Save flow
+  const handleSavePatient = (patientData, bookAppointment = false) => {
+    const newPatient = addPatient(patientData);
+    if (bookAppointment && newPatient) {
+      setSelectedPatientId(newPatient.id);
+      setAppointmentModalOpen(true);
     }
   };
+
+  const handleEditPatient = (id, patientData) => {
+    editPatient(id, patientData);
+  };
+
+  const handleConfirmDelete = () => {
+    if (selectedPatientId) {
+      deletePatient(selectedPatientId);
+      setSelectedPatientId('');
+    }
+  };
+
+  // Filter patients based on search
+  const filteredPatients = useMemo(() => {
+    if (!searchQuery.trim()) return patients;
+    return patients.filter(
+      (p) =>
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.phone.includes(searchQuery) ||
+        p.id.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [patients, searchQuery]);
 
   const columns = [
     {
@@ -100,12 +63,17 @@ const Patients = () => {
     {
       key: 'name',
       header: 'Patient Name',
-      sortable: true
+      sortable: true,
+      render: (row) => <span className="font-bold text-slate-800">{row.name}</span>
     },
     {
       key: 'age',
       header: 'Age / Gender',
-      render: (row) => <span>{row.age} yrs / {row.gender}</span>
+      render: (row) => (
+        <span>
+          {row.age} Yrs / {row.gender}
+        </span>
+      )
     },
     {
       key: 'phone',
@@ -115,7 +83,7 @@ const Patients = () => {
       key: 'bloodGroup',
       header: 'Blood Group',
       render: (row) => (
-        <span className="inline-block rounded-md bg-red-50 px-2 py-1 text-xs font-bold text-red-600 border border-red-100">
+        <span className="inline-block rounded-md bg-red-50 px-2 py-0.5 text-xs font-bold text-red-600 border border-red-100">
           {row.bloodGroup || 'O+'}
         </span>
       )
@@ -132,323 +100,169 @@ const Patients = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-800 tracking-tight">Patients Directory</h1>
-          <p className="text-xs text-slate-400 font-semibold">Monitor records of registered orthopedic patients</p>
-        </div>
+        <div className="relative flex-1">
+        <span className="absolute inset-y-0 left-3 flex items-center text-slate-400 pointer-events-none">
+          <Search className="h-4 w-4" />
+        </span>
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search patients by name, phone, or ID..."
+          className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-4 text-sm text-slate-700 placeholder-slate-400 focus:border-hospital-500 focus:outline-none focus:ring-1 focus:ring-hospital-500 transition-all shadow-sm"
+        />
+      </div>
         <button
-          onClick={handleOpenAdd}
-          className="flex items-center gap-1.5 self-start rounded-xl bg-gradient-to-r from-hospital-500 to-cyanic-500 px-4 py-2.5 text-sm font-bold text-white shadow-premium hover:shadow-premium-hover transition-all focus:outline-none"
+          type="button"
+          onClick={() => {
+            setSelectedPatient(null);
+            setPatientModalOpen(true);
+          }}
+          className="flex items-center gap-1.5 self-start rounded-xl bg-gradient-to-r from-hospital-500 to-cyanic-500 px-4 py-2.5 text-sm font-bold text-white shadow-premium hover:shadow-premium-hover transition-all focus:outline-none cursor-pointer"
         >
+
           <Plus className="h-4 w-4" />
           <span>Add Patient</span>
         </button>
       </div>
 
-      {/* Main Table */}
-      <Table
-        columns={columns}
-        data={patients}
-        searchPlaceholder="Search patients by name..."
-        searchKey="name"
-        emptyMessage="No registered patients match your parameters"
-        itemsPerPage={6}
-        actions={(row) => (
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => handleOpenView(row)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors"
-              title="View Profile"
-            >
-              <Eye className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => handleOpenEdit(row)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-hospital-600 transition-colors"
-              title="Edit Record"
-            >
-              <Edit2 className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => handleDelete(row.id)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors"
-              title="Delete Record"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-      />
+      {/* Custom Search Box */}
+      
 
-      {/* Modal: Add Patient */}
-      <Modal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} title="Register New Patient">
-        <form onSubmit={handleAddSubmit} className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Full Name</label>
-              <input
-                type="text"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Phone Number</label>
-              <input
-                type="text"
-                required
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-              />
-            </div>
+      {/* Patient Table or Searched Patient Not Found Button */}
+      {filteredPatients.length === 0 && searchQuery.trim() !== '' ? (
+        <div className="flex flex-col items-center justify-center p-12 border border-dashed border-slate-200 bg-white rounded-2xl text-center space-y-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-sky-50 text-hospital-500 shadow-inner">
+            <UserPlus className="h-7 w-7" />
           </div>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Age</label>
-              <input
-                type="number"
-                required
-                value={formData.age}
-                onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Gender</label>
-              <select
-                value={formData.gender}
-                onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-              >
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Blood Group</label>
-              <select
-                value={formData.bloodGroup}
-                onChange={(e) => setFormData({ ...formData, bloodGroup: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-              >
-                <option value="O+">O+</option>
-                <option value="A+">A+</option>
-                <option value="B+">B+</option>
-                <option value="AB+">AB+</option>
-                <option value="O-">O-</option>
-                <option value="A-">A-</option>
-                <option value="B-">B-</option>
-                <option value="AB-">AB-</option>
-              </select>
-            </div>
-          </div>
-
           <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Diagnosis / Reason</label>
-            <input
-              type="text"
-              required
-              value={formData.disease}
-              onChange={(e) => setFormData({ ...formData, disease: e.target.value })}
-              placeholder="e.g. Knee Osteoarthritis, Fracture, ACL Sprain"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
+            <h3 className="text-sm font-bold text-slate-800">Searched Patient Not Found</h3>
+            <p className="text-xs text-slate-400 mt-1">
+              " {searchQuery} " does not match any registered patients.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPatientModalOpen(true)}
+            className="rounded-xl bg-hospital-500 hover:bg-hospital-600 text-xs font-bold text-white py-2.5 px-6 shadow-premium transition-all cursor-pointer"
+          >
+            Add Patient
+          </button>
+        </div>
+      ) : (
+        <Table
+          columns={columns}
+          data={filteredPatients}
+          emptyMessage="No patient records found"
+          itemsPerPage={6}
+          actions={(row) => (
+            <ThreeDotMenu
+              options={[
+                {
+                  label: 'View EMR File',
+                  icon: Eye,
+                  onClick: () => {
+                    setSelectedPatient(row);
+                    setViewModalOpen(true);
+                  }
+                },
+                {
+                  label: 'Edit Details',
+                  icon: Edit,
+                  onClick: () => {
+                    setSelectedPatient(row);
+                    setPatientModalOpen(true);
+                  }
+                },
+                {
+                  label: 'Book Appointment',
+                  icon: Calendar,
+                  onClick: () => {
+                    setSelectedPatientId(row.id);
+                    setAppointmentModalOpen(true);
+                  }
+                },
+                {
+                  label: 'Delete Record',
+                  icon: Trash2,
+                  destructive: true,
+                  onClick: () => {
+                    setSelectedPatientId(row.id);
+                    setDeleteConfirmOpen(true);
+                  }
+                }
+              ]}
             />
-          </div>
+          )}
+        />
+      )}
 
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Home Address</label>
-            <textarea
-              required
-              value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              rows="3"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => setIsAddOpen(false)}
-              className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-xl bg-hospital-500 text-sm font-bold text-white shadow-premium hover:bg-hospital-600"
-            >
-              Register Patient
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Modal: Edit Patient */}
-      <Modal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} title={`Edit Patient: ${selectedPatient?.id}`}>
-        <form onSubmit={handleEditSubmit} className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Full Name</label>
-              <input
-                type="text"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Phone Number</label>
-              <input
-                type="text"
-                required
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Age</label>
-              <input
-                type="number"
-                required
-                value={formData.age}
-                onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Gender</label>
-              <select
-                value={formData.gender}
-                onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-              >
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Blood Group</label>
-              <select
-                value={formData.bloodGroup}
-                onChange={(e) => setFormData({ ...formData, bloodGroup: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-              >
-                <option value="O+">O+</option>
-                <option value="A+">A+</option>
-                <option value="B+">B+</option>
-                <option value="AB+">AB+</option>
-                <option value="O-">O-</option>
-                <option value="A-">A-</option>
-                <option value="B-">B-</option>
-                <option value="AB-">AB-</option>
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Diagnosis / Reason</label>
-            <input
-              type="text"
-              required
-              value={formData.disease}
-              onChange={(e) => setFormData({ ...formData, disease: e.target.value })}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Home Address</label>
-            <textarea
-              required
-              value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              rows="3"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => setIsEditOpen(false)}
-              className="px-4 py-2 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-xl bg-hospital-500 text-sm font-bold text-white shadow-premium hover:bg-hospital-600"
-            >
-              Save Changes
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Modal: View Patient Profile */}
-      <Modal isOpen={isViewOpen} onClose={() => setIsViewOpen(false)} title="Patient Medical Record Card">
+      {/* Modal: View Demographics Details */}
+      <Modal isOpen={viewModalOpen} onClose={() => setViewModalOpen(false)} title="Patient Demographics" size="md">
         {selectedPatient && (
-          <div className="space-y-6">
-            <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-              <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-hospital-500 text-white font-extrabold text-lg shadow-premium">
-                {selectedPatient.name.split(' ').map(n => n[0]).join('')}
+          <div className="space-y-4 text-xs font-semibold text-slate-600">
+            <div className="flex items-center gap-3 border-b pb-3.5">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-hospital-500">
+                <UserCheck className="h-5 w-5" />
               </div>
               <div>
-                <h4 className="text-base font-bold text-slate-800">{selectedPatient.name}</h4>
-                <p className="text-xs text-hospital-600 font-bold">{selectedPatient.id} &bull; Blood {selectedPatient.bloodGroup || 'O+'}</p>
+                <h4 className="text-sm font-bold text-slate-800">{selectedPatient.name}</h4>
+                <span className="text-[10px] text-slate-400 block mt-0.5">ID: {selectedPatient.id}</span>
               </div>
             </div>
-
-            <div className="grid gap-4 sm:grid-cols-2 text-sm">
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Age / Gender</span>
-                <span className="font-semibold text-slate-700">{selectedPatient.age} Years / {selectedPatient.gender}</span>
+            <div className="grid grid-cols-2 gap-4 py-2 border-b">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Age & Gender</span>
+                <p className="text-slate-800 mt-1">{selectedPatient.age} Yrs / {selectedPatient.gender}</p>
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Phone Number</span>
-                <span className="font-semibold text-slate-700">{selectedPatient.phone}</span>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Primary Orthopedic Concern</span>
-                <span className="font-semibold text-slate-700 flex items-center gap-1.5">
-                  <FileText className="h-4 w-4 text-hospital-500" />
-                  {selectedPatient.disease || 'N/A'}
-                </span>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Last Checkup Date</span>
-                <span className="font-semibold text-slate-700">{selectedPatient.lastVisit}</span>
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Blood Group</span>
+                <p className="text-slate-800 mt-1">{selectedPatient.bloodGroup || 'O+'}</p>
               </div>
             </div>
-
-            <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 text-sm">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Residential Address</span>
-              <p className="font-medium text-slate-700 leading-relaxed">{selectedPatient.address || 'No address provided'}</p>
+            <div className="grid grid-cols-2 gap-4 py-2 border-b">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Phone Number</span>
+                <p className="text-slate-800 mt-1">{selectedPatient.phone}</p>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Diagnosis / Disease</span>
+                <p className="text-slate-800 mt-1">{selectedPatient.disease || 'General checkup'}</p>
+              </div>
             </div>
-
-            <div className="flex justify-end pt-4 border-t border-slate-100">
-              <button
-                onClick={() => setIsViewOpen(false)}
-                className="px-5 py-2 rounded-xl bg-slate-800 text-sm font-bold text-white hover:bg-slate-900 shadow-sm"
-              >
-                Close Record Card
-              </button>
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Residential Address</span>
+              <p className="text-slate-700 bg-slate-50 border p-3 rounded-xl mt-1.5 leading-relaxed">{selectedPatient.address || 'Danavaipeta, Rajahmundry'}</p>
             </div>
           </div>
         )}
       </Modal>
+
+      {/* Global Add/Edit Patient Modal */}
+      <PatientModal
+        isOpen={patientModalOpen}
+        onClose={() => setPatientModalOpen(false)}
+        onSave={selectedPatient ? (data) => handleEditPatient(selectedPatient.id, data) : handleSavePatient}
+        patient={selectedPatient}
+      />
+
+      {/* Global Appointment Booking Modal */}
+      <AppointmentModal
+        isOpen={appointmentModalOpen}
+        onClose={() => setAppointmentModalOpen(false)}
+        initialPatientId={selectedPatientId}
+      />
+
+      {/* Destructive Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={deleteConfirmOpen}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Patient Record"
+        message="Are you sure you want to permanently delete this patient file? All clinical history and appointments will be lost."
+        confirmText="Delete"
+        type="danger"
+      />
     </div>
   );
 };

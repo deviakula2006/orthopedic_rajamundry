@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
 import { useHospital } from '../../context/HospitalContext';
-import { Download, Calendar, TrendingUp, Users, Receipt, Activity } from 'lucide-react';
+import {
+  FileText,
+  TrendingUp,
+  Download,
+  Calendar,
+  Users,
+  Receipt
+} from 'lucide-react';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -12,48 +19,67 @@ import {
   Bar
 } from 'recharts';
 
-const Reports = () => {
-  const { bills, patients, investigations } = useHospital();
-  
+const ReceptionistReports = () => {
+  const { patients, appointments, bills } = useHospital();
+  const [activeTab, setActiveTab] = useState('registrations');
+  const [dateFrom, setDateFrom] = useState('2026-06-21');
+  const [dateTo, setDateTo] = useState('2026-06-21');
+
+  // Compute reports datasets
   const todayStr = '2026-06-21';
-  const [dateFrom, setDateFrom] = useState(todayStr);
-  const [dateTo, setDateTo] = useState(todayStr);
-  const [activeTab, setActiveTab] = useState('revenue');
 
-  // Filter datasets based on chosen date range
-  const filteredBills = bills.filter((b) => {
-    const d = b.date || todayStr;
-    return d >= dateFrom && d <= dateTo;
+  // 1. Registrations Report
+  const registeredPatients = patients.filter((p) => {
+    if (!p.registrationDate) return false;
+    return p.registrationDate >= dateFrom && p.registrationDate <= dateTo;
   });
 
-  const filteredPatients = patients.filter((p) => {
-    const d = p.registrationDate || todayStr;
-    return d >= dateFrom && d <= dateTo;
+  // 2. Appointments Report
+  const appointmentRecords = appointments.filter((a) => {
+    return a.date >= dateFrom && a.date <= dateTo;
   });
 
-  // Since investigations are catalog-level, let's treat the ordered ones in visit history
-  // as the investigations data for the selected range.
-  // We can filter bills of type 'Investigations' for the range.
-  const totalInvestigationsVal = filteredBills
-    .filter((b) => b.billType === 'Investigations')
-    .reduce((acc, b) => acc + b.items.length, 0);
+  // 3. Billing Collections Report
+  const billingRecords = bills.filter((b) => {
+    return b.date >= dateFrom && b.date <= dateTo;
+  });
+  const totalCollectionsVal = billingRecords
+    .filter((b) => b.paymentStatus === 'Paid')
+    .reduce((acc, b) => acc + b.total, 0);
 
-  // Math totals
-  const revenueTotal = filteredBills.reduce((acc, b) => acc + b.total, 0);
+  // Trend Data for Charts
+  const regTrendData = [
+    { day: 'Mon', count: 4 },
+    { day: 'Tue', count: 7 },
+    { day: 'Wed', count: 5 },
+    { day: 'Thu', count: 12 },
+    { day: 'Fri', count: 8 },
+    { day: 'Sat', count: 4 },
+    { day: 'Sun', count: 6 }
+  ];
 
-  // Mock Trend data for Recharts
-  const weeklyRevenueData = [
-    { day: 'Mon', revenue: 25000, registrations: 5, tests: 12 },
-    { day: 'Tue', revenue: 38000, registrations: 8, tests: 18 },
-    { day: 'Wed', revenue: 21000, registrations: 4, tests: 10 },
-    { day: 'Thu', revenue: 45000, registrations: 11, tests: 24 },
-    { day: 'Fri', revenue: 34000, registrations: 7, tests: 16 },
-    { day: 'Sat', revenue: 18000, registrations: 3, tests: 8 },
-    { day: 'Sun', revenue: 10000, registrations: 2, tests: 5 }
+  const aptTrendData = [
+    { day: 'Mon', count: 15 },
+    { day: 'Tue', count: 22 },
+    { day: 'Wed', count: 18 },
+    { day: 'Thu', count: 28 },
+    { day: 'Fri', count: 20 },
+    { day: 'Sat', count: 10 },
+    { day: 'Sun', count: 5 }
+  ];
+
+  const collectionsTrendData = [
+    { day: 'Mon', amount: 15000 },
+    { day: 'Tue', amount: 22000 },
+    { day: 'Wed', amount: 14000 },
+    { day: 'Thu', amount: 35000 },
+    { day: 'Fri', amount: 28000 },
+    { day: 'Sat', amount: 12000 },
+    { day: 'Sun', amount: 8000 }
   ];
 
   const handleExport = (format) => {
-    alert(`Exporting ${activeTab} report as ${format.toUpperCase()}... (UI Only, Backend later)`);
+    alert(`Exporting report as ${format.toUpperCase()}... (Future integration module)`);
   };
 
   return (
@@ -68,7 +94,7 @@ const Reports = () => {
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 py-1.5 px-3 text-xs font-bold text-slate-600 transition-all cursor-pointer"
           >
             <Download className="h-4 w-4" />
-            <span>Export PDF</span>
+            <span>PDF Ledger</span>
           </button>
           <button
             type="button"
@@ -76,7 +102,7 @@ const Reports = () => {
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 py-1.5 px-3 text-xs font-bold text-slate-600 transition-all cursor-pointer"
           >
             <Download className="h-4 w-4" />
-            <span>Export Excel</span>
+            <span>Excel Sheet</span>
           </button>
           <button
             type="button"
@@ -84,7 +110,7 @@ const Reports = () => {
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 py-1.5 px-3 text-xs font-bold text-slate-600 transition-all cursor-pointer"
           >
             <Download className="h-4 w-4" />
-            <span>Export CSV</span>
+            <span>CSV File</span>
           </button>
         </div>
       </div>
@@ -92,22 +118,20 @@ const Reports = () => {
       {/* Date Filter Panel */}
       <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-premium flex flex-wrap items-center gap-4 text-xs font-semibold text-slate-600">
         <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-slate-400" />
           <span>Date From:</span>
           <input
             type="date"
             value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value || todayStr)}
+            onChange={(e) => setDateFrom(e.target.value)}
             className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-2.5 text-xs text-slate-700 focus:outline-none"
           />
         </div>
         <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-slate-400" />
           <span>Date To:</span>
           <input
             type="date"
             value={dateTo}
-            onChange={(e) => setDateTo(e.target.value || todayStr)}
+            onChange={(e) => setDateTo(e.target.value)}
             className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-2.5 text-xs text-slate-700 focus:outline-none"
           />
         </div>
@@ -126,19 +150,9 @@ const Reports = () => {
       {/* Tabs Menu */}
       <div className="flex border-b border-slate-200">
         <button
-          onClick={() => setActiveTab('revenue')}
+          onClick={() => setActiveTab('registrations')}
           className={`py-3 px-6 text-xs font-bold border-b-2 transition-all cursor-pointer ${
-            activeTab === 'revenue'
-              ? 'border-hospital-500 text-hospital-600'
-              : 'border-transparent text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          Revenue Report
-        </button>
-        <button
-          onClick={() => setActiveTab('patients')}
-          className={`py-3 px-6 text-xs font-bold border-b-2 transition-all cursor-pointer ${
-            activeTab === 'patients'
+            activeTab === 'registrations'
               ? 'border-hospital-500 text-hospital-600'
               : 'border-transparent text-slate-400 hover:text-slate-600'
           }`}
@@ -146,112 +160,53 @@ const Reports = () => {
           Patient Registrations
         </button>
         <button
-          onClick={() => setActiveTab('investigations')}
+          onClick={() => setActiveTab('appointments')}
           className={`py-3 px-6 text-xs font-bold border-b-2 transition-all cursor-pointer ${
-            activeTab === 'investigations'
+            activeTab === 'appointments'
               ? 'border-hospital-500 text-hospital-600'
               : 'border-transparent text-slate-400 hover:text-slate-600'
           }`}
         >
-          Lab Investigations
+          OPD Appointments
+        </button>
+        <button
+          onClick={() => setActiveTab('collections')}
+          className={`py-3 px-6 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+            activeTab === 'collections'
+              ? 'border-hospital-500 text-hospital-600'
+              : 'border-transparent text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          Billing Collections
         </button>
       </div>
 
       {/* Tab Panels */}
-      {activeTab === 'revenue' && (
+      {activeTab === 'registrations' && (
         <div className="grid gap-6 md:grid-cols-3">
           {/* Summary Card */}
           <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium flex flex-col justify-between h-44">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Revenue Collected</span>
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                <Receipt className="h-5 w-5" />
-              </div>
-            </div>
-            <div>
-              <span className="text-2xl font-extrabold text-slate-800">
-                {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(revenueTotal)}
-              </span>
-              <span className="text-[10px] text-slate-400 font-semibold block mt-1">For selected date range</span>
-            </div>
-          </div>
-
-          {/* Trend Chart */}
-          <div className="md:col-span-2 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium h-44 flex flex-col justify-between">
-            <span className="text-xs font-bold text-slate-500 block mb-2">Revenue Growth Trend</span>
-            <div className="h-28 w-full text-xs">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={weeklyRevenueData}>
-                  <XAxis dataKey="day" stroke="#cbd5e1" />
-                  <ChartTooltip />
-                  <Area type="monotone" dataKey="revenue" stroke="#10b981" fill="#ecfdf5" strokeWidth={2.5} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Data Table */}
-          <div className="md:col-span-3 rounded-2xl border border-slate-200/80 bg-white overflow-hidden shadow-premium">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b bg-slate-50 font-bold text-slate-400 uppercase">
-                  <th className="px-6 py-3">Invoice No</th>
-                  <th className="px-6 py-3">Patient Name</th>
-                  <th className="px-6 py-3">Treating Consultant</th>
-                  <th className="px-6 py-3 text-right">Tax (5% GST)</th>
-                  <th className="px-6 py-3 text-right">Discount (₹)</th>
-                  <th className="px-6 py-3 text-right">Collection Total (₹)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                {filteredBills.map((b) => (
-                  <tr key={b.invoiceNo}>
-                    <td className="px-6 py-3 text-hospital-600 font-bold">{b.invoiceNo}</td>
-                    <td className="px-6 py-3">{b.patientName}</td>
-                    <td className="px-6 py-3 text-slate-500">{b.doctorName}</td>
-                    <td className="px-6 py-3 text-right">₹{b.tax}</td>
-                    <td className="px-6 py-3 text-right text-red-500">-₹{b.discount}</td>
-                    <td className="px-6 py-3 text-right font-extrabold text-slate-800">₹{b.total}</td>
-                  </tr>
-                ))}
-                {filteredBills.length === 0 && (
-                  <tr>
-                    <td colSpan="6" className="px-6 py-8 text-center text-slate-400">
-                      No collections recorded in this range.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'patients' && (
-        <div className="grid gap-6 md:grid-cols-3">
-          {/* Summary Card */}
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium flex flex-col justify-between h-44">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Registrations</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Registered</span>
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-hospital-500">
                 <Users className="h-5 w-5" />
               </div>
             </div>
             <div>
-              <span className="text-3xl font-extrabold text-slate-800">{filteredPatients.length} Patients</span>
+              <span className="text-3xl font-extrabold text-slate-800">{registeredPatients.length} Patients</span>
               <span className="text-[10px] text-slate-400 font-semibold block mt-1">For selected date range</span>
             </div>
           </div>
 
           {/* Trend Chart */}
           <div className="md:col-span-2 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium h-44 flex flex-col justify-between">
-            <span className="text-xs font-bold text-slate-500 block mb-2">Registrations Weekly Trend</span>
+            <span className="text-xs font-bold text-slate-500 block mb-2">Registration Weekly Trend</span>
             <div className="h-28 w-full text-xs">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={weeklyRevenueData}>
+                <AreaChart data={regTrendData}>
                   <XAxis dataKey="day" stroke="#cbd5e1" />
                   <ChartTooltip />
-                  <Area type="monotone" dataKey="registrations" stroke="#0ea5e9" fill="#e0f2fe" strokeWidth={2.5} />
+                  <Area type="monotone" dataKey="count" stroke="#0ea5e9" fill="#e0f2fe" strokeWidth={2.5} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -263,23 +218,23 @@ const Reports = () => {
               <thead>
                 <tr className="border-b bg-slate-50 font-bold text-slate-400 uppercase">
                   <th className="px-6 py-3">Patient ID</th>
-                  <th className="px-6 py-3">Full Name</th>
-                  <th className="px-6 py-3">Age / Gender</th>
-                  <th className="px-6 py-3">Diagnosis</th>
+                  <th className="px-6 py-3">Name</th>
+                  <th className="px-6 py-3">Phone</th>
+                  <th className="px-6 py-3">Gender</th>
                   <th className="px-6 py-3">Registered Date</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                {filteredPatients.map((p) => (
+                {registeredPatients.map((p) => (
                   <tr key={p.id}>
                     <td className="px-6 py-3 text-hospital-600 font-bold">{p.id}</td>
                     <td className="px-6 py-3">{p.name}</td>
-                    <td className="px-6 py-3">{p.age} Yrs / {p.gender}</td>
-                    <td className="px-6 py-3 text-slate-500">{p.disease || 'General checkup'}</td>
+                    <td className="px-6 py-3 text-slate-400">{p.phone}</td>
+                    <td className="px-6 py-3">{p.gender}</td>
                     <td className="px-6 py-3 text-slate-400">{p.registrationDate || todayStr}</td>
                   </tr>
                 ))}
-                {filteredPatients.length === 0 && (
+                {registeredPatients.length === 0 && (
                   <tr>
                     <td colSpan="5" className="px-6 py-8 text-center text-slate-400">
                       No registrations found in this range.
@@ -292,31 +247,31 @@ const Reports = () => {
         </div>
       )}
 
-      {activeTab === 'investigations' && (
+      {activeTab === 'appointments' && (
         <div className="grid gap-6 md:grid-cols-3">
           {/* Summary Card */}
           <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium flex flex-col justify-between h-44">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Tests Ordered</span>
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
-                <Activity className="h-5 w-5" />
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Appointments</span>
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-hospital-500">
+                <Calendar className="h-5 w-5" />
               </div>
             </div>
             <div>
-              <span className="text-3xl font-extrabold text-slate-800">{totalInvestigationsVal} Tests</span>
+              <span className="text-3xl font-extrabold text-slate-800">{appointmentRecords.length} Consultations</span>
               <span className="text-[10px] text-slate-400 font-semibold block mt-1">For selected date range</span>
             </div>
           </div>
 
           {/* Trend Chart */}
           <div className="md:col-span-2 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium h-44 flex flex-col justify-between">
-            <span className="text-xs font-bold text-slate-500 block mb-2">Investigation Weekly Trends</span>
+            <span className="text-xs font-bold text-slate-500 block mb-2">OPD Appointment Trends</span>
             <div className="h-28 w-full text-xs">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={weeklyRevenueData}>
+                <BarChart data={aptTrendData}>
                   <XAxis dataKey="day" stroke="#cbd5e1" />
                   <ChartTooltip />
-                  <Bar dataKey="tests" fill="#a855f7" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="count" fill="#38bdf8" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -327,19 +282,105 @@ const Reports = () => {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b bg-slate-50 font-bold text-slate-400 uppercase">
-                  <th className="px-6 py-3">Test Code</th>
-                  <th className="px-6 py-3">Investigation Name</th>
-                  <th className="px-6 py-3 text-right">Standard Rate (₹)</th>
+                  <th className="px-6 py-3">Appt ID</th>
+                  <th className="px-6 py-3">Patient Name</th>
+                  <th className="px-6 py-3">Doctor Consultant</th>
+                  <th className="px-6 py-3">Type</th>
+                  <th className="px-6 py-3">Status</th>
+                  <th className="px-6 py-3">Date</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                {investigations.map((i) => (
-                  <tr key={i.id}>
-                    <td className="px-6 py-3 text-hospital-600 font-bold">{i.id}</td>
-                    <td className="px-6 py-3">{i.testName}</td>
-                    <td className="px-6 py-3 text-right font-extrabold text-slate-800">₹{i.price}</td>
+                {appointmentRecords.map((a) => (
+                  <tr key={a.id}>
+                    <td className="px-6 py-3 text-hospital-600 font-bold">{a.id}</td>
+                    <td className="px-6 py-3">{a.patientName}</td>
+                    <td className="px-6 py-3 text-slate-500">{a.doctorName}</td>
+                    <td className="px-6 py-3">{a.type}</td>
+                    <td className="px-6 py-3">
+                      <span className="rounded bg-slate-50 border px-2 py-0.5 text-[10px] font-extrabold uppercase">
+                        {a.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-3 text-slate-400">{a.date}</td>
                   </tr>
                 ))}
+                {appointmentRecords.length === 0 && (
+                  <tr>
+                    <td colSpan="6" className="px-6 py-8 text-center text-slate-400">
+                      No appointments recorded in this range.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'collections' && (
+        <div className="grid gap-6 md:grid-cols-3">
+          {/* Summary Card */}
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium flex flex-col justify-between h-44">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Gross Collection</span>
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                <Receipt className="h-5 w-5" />
+              </div>
+            </div>
+            <div>
+              <span className="text-2xl font-extrabold text-slate-800">
+                {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(totalCollectionsVal)}
+              </span>
+              <span className="text-[10px] text-slate-400 font-semibold block mt-1">For selected date range</span>
+            </div>
+          </div>
+
+          {/* Trend Chart */}
+          <div className="md:col-span-2 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium h-44 flex flex-col justify-between">
+            <span className="text-xs font-bold text-slate-500 block mb-2">Collection Weekly Trend</span>
+            <div className="h-28 w-full text-xs">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={collectionsTrendData}>
+                  <XAxis dataKey="day" stroke="#cbd5e1" />
+                  <ChartTooltip />
+                  <Area type="monotone" dataKey="amount" stroke="#10b981" fill="#ecfdf5" strokeWidth={2.5} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Data Table */}
+          <div className="md:col-span-3 rounded-2xl border border-slate-200/80 bg-white overflow-hidden shadow-premium">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b bg-slate-50 font-bold text-slate-400 uppercase">
+                  <th className="px-6 py-3">Invoice No</th>
+                  <th className="px-6 py-3">Patient Name</th>
+                  <th className="px-6 py-3">Payment Mode</th>
+                  <th className="px-6 py-3 text-right">Discount (₹)</th>
+                  <th className="px-6 py-3 text-right">Tax (₹)</th>
+                  <th className="px-6 py-3 text-right">Total Collection (₹)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                {billingRecords.map((b) => (
+                  <tr key={b.invoiceNo}>
+                    <td className="px-6 py-3 text-hospital-600 font-bold">{b.invoiceNo}</td>
+                    <td className="px-6 py-3">{b.patientName}</td>
+                    <td className="px-6 py-3 text-slate-400">{b.paymentMode}</td>
+                    <td className="px-6 py-3 text-right text-red-500">-₹{b.discount}</td>
+                    <td className="px-6 py-3 text-right">₹{b.tax}</td>
+                    <td className="px-6 py-3 text-right font-extrabold text-slate-800">₹{b.total}</td>
+                  </tr>
+                ))}
+                {billingRecords.length === 0 && (
+                  <tr>
+                    <td colSpan="6" className="px-6 py-8 text-center text-slate-400">
+                      No invoices recorded in this range.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -349,4 +390,4 @@ const Reports = () => {
   );
 };
 
-export default Reports;
+export default ReceptionistReports;

@@ -14,7 +14,7 @@ const Topbar = ({ toggleSidebar }) => {
     const path = location.pathname;
     if (path.includes('dashboard')) return 'Dashboard Analytics';
     if (path.includes('patients')) return 'Patients Directory';
-    if (path.includes('doctors')) return 'Medical Panel (Doctors)';
+    if (path.includes('doctors')) return 'Doctors Staff';
     if (path.includes('receptionists')) return 'Receptionist Staff';
     if (path.includes('appointments')) return 'Appointment Scheduler';
     if (path.includes('investigations')) return 'Laboratory Investigations';
@@ -22,7 +22,7 @@ const Topbar = ({ toggleSidebar }) => {
     if (path.includes('beds')) return 'Bed & Ward Management';
     if (path.includes('reports')) return 'Reports & Analytics';
     if (path.includes('settings')) return 'System Settings';
-    return 'Admin Panel';
+    return 'Patient Info';
   };
 
   const handleLogout = () => {
@@ -51,22 +51,10 @@ const Topbar = ({ toggleSidebar }) => {
       {/* Right section: Search, Notifications, Profile */}
       <div className="flex items-center gap-4">
         {/* Search bar */}
-        <div className="relative hidden w-64 md:block">
-          <span className="absolute inset-y-0 left-3 flex items-center text-slate-400">
-            <Search className="h-4 w-4" />
-          </span>
-          <input
-            type="text"
-            placeholder="Search records, invoices..."
-            className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2 pl-10 pr-4 text-sm text-slate-700 placeholder-slate-400 focus:border-hospital-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-hospital-500 transition-all"
-          />
-        </div>
+       
 
         {/* Notification bell */}
-        <button className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors">
-          <Bell className="h-5 w-5" />
-          <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
-        </button>
+        
 
         {/* Divider */}
         <div className="h-6 w-px bg-slate-200"></div>
@@ -119,8 +107,7 @@ const Topbar = ({ toggleSidebar }) => {
                     }}
                     className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-600 rounded-lg hover:bg-slate-50"
                   >
-                    <SettingsIcon className="h-4 w-4" />
-                    <span>Settings</span>
+                   
                   </button>
                 </div>
                 <div className="border-t border-slate-100 py-1">
