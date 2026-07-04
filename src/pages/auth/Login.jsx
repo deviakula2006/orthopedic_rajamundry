@@ -10,7 +10,7 @@ const Login = () => {
   const navigate = useNavigate();
 
   const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [password, setPassword] = useState('Admin@123');
   const [role, setRole] = useState('Super Admin');
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
@@ -135,7 +135,7 @@ const Login = () => {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter password (e.g., admin123)"
+                    placeholder="Enter password (e.g., Admin@123)"
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-11 text-sm font-semibold text-slate-700 placeholder-slate-400 focus:border-hospital-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-hospital-500 transition-all"
                   />
                   <button
@@ -185,7 +185,7 @@ const Login = () => {
             <div className="mt-8 rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-[11px] font-semibold text-slate-500 leading-relaxed">
               <span className="text-slate-700 font-bold uppercase block mb-1">Demo Credentials:</span>
               <p>Username: <code className="bg-white px-1 py-0.5 rounded border text-hospital-600 font-mono">admin</code></p>
-              <p>Password: <code className="bg-white px-1 py-0.5 rounded border text-hospital-600 font-mono">admin123</code></p>
+              <p>Password: <code className="bg-white px-1 py-0.5 rounded border text-hospital-600 font-mono">Admin@123</code></p>
             </div>
           </motion.div>
         </div>

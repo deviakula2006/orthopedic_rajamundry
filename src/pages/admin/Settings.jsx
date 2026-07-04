@@ -3,9 +3,87 @@ import { useAuth } from '../../context/AuthContext';
 import { useHospital } from '../../context/HospitalContext';
 import { User, Shield, Building, Save } from 'lucide-react';
 
+// Local state is initialized directly from `settings` via useState's lazy
+// initializer (no effect needed) — this component only mounts once
+// `hospitalSettings` has actually loaded, so the initial values are correct
+// on first render and there's nothing external to re-sync afterward.
+const HospitalMetadataForm = ({ settings, onSave }) => {
+  const [hospName, setHospName] = useState(settings.name || '');
+  const [hospAddr, setHospAddr] = useState(settings.address || '');
+  const [hospContact, setHospContact] = useState(settings.contactPhone || '');
+  const [hospLic, setHospLic] = useState(settings.licenseNumber || '');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    await onSave({ name: hospName, address: hospAddr, contactPhone: hospContact, licenseNumber: hospLic });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <h3 className="text-base font-bold text-slate-800 border-b pb-3 mb-4">Hospital Organization Details</h3>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Hospital Facility Name</label>
+          <input
+            type="text"
+            required
+            value={hospName}
+            onChange={(e) => setHospName(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">License Registration No</label>
+          <input
+            type="text"
+            required
+            value={hospLic}
+            onChange={(e) => setHospLic(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Contact Landline / Phone</label>
+          <input
+            type="text"
+            required
+            value={hospContact}
+            onChange={(e) => setHospContact(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Facility Location / Address</label>
+          <input
+            type="text"
+            required
+            value={hospAddr}
+            onChange={(e) => setHospAddr(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
+          />
+        </div>
+      </div>
+
+      <div>
+        <button
+          type="submit"
+          className="flex items-center gap-1.5 rounded-xl bg-hospital-500 px-5 py-2.5 text-sm font-bold text-white shadow-premium hover:bg-hospital-600 focus:outline-none"
+        >
+          <Save className="h-4.5 w-4.5" />
+          <span>Save Metadata</span>
+        </button>
+      </div>
+    </form>
+  );
+};
+
 const Settings = () => {
-  const { user, updateProfile } = useAuth();
-  const { showToast } = useHospital();
+  const { user, updateProfile, changePassword } = useAuth();
+  const { showToast, hospitalSettings, updateHospitalSettings } = useHospital();
 
   const [activeTab, setActiveTab] = useState('profile');
 
@@ -18,37 +96,31 @@ const Settings = () => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // Hospital details forms
-  const [hospName, setHospName] = useState('Rajahmundry Orthopedic Hospital');
-  const [hospAddr, setHospAddr] = useState('Danavaipeta, Tilak Road, Rajahmundry, Andhra Pradesh, 533103');
-  const [hospContact, setHospContact] = useState('+91 883 244 5566');
-  const [hospLic, setHospLic] = useState('AP-MED-ROH-2026-981');
-
-  const handleProfileSubmit = (e) => {
+  const handleProfileSubmit = async (e) => {
     e.preventDefault();
-    updateProfile(profileName, profileEmail);
-    showToast("Profile details updated successfully!");
+    try {
+      await updateProfile(profileName, profileEmail);
+      showToast("Profile details updated successfully!");
+    } catch (err) {
+      showToast(err.response?.data?.error?.message || "Failed to update profile", "error");
+    }
   };
 
-  const handlePasswordSubmit = (e) => {
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
       showToast("New passwords do not match!", "error");
       return;
     }
-    if (currentPassword !== 'admin123') {
-      showToast("Current password is incorrect!", "error");
-      return;
+    try {
+      await changePassword(currentPassword, newPassword);
+      showToast("System credentials updated successfully!");
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      showToast(err.response?.data?.error?.message || "Failed to update password", "error");
     }
-    showToast("System credentials updated successfully!");
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-  };
-
-  const handleHospSubmit = (e) => {
-    e.preventDefault();
-    showToast("Hospital organization details saved!");
   };
 
   const tabs = [
@@ -178,67 +250,12 @@ const Settings = () => {
             </form>
           )}
 
-          {activeTab === 'hospital' && (
-            <form onSubmit={handleHospSubmit} className="space-y-5">
-              <h3 className="text-base font-bold text-slate-800 border-b pb-3 mb-4">Hospital Organization Details</h3>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Hospital Facility Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={hospName}
-                    onChange={(e) => setHospName(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">License Registration No</label>
-                  <input
-                    type="text"
-                    required
-                    value={hospLic}
-                    onChange={(e) => setHospLic(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Contact Landline / Phone</label>
-                  <input
-                    type="text"
-                    required
-                    value={hospContact}
-                    onChange={(e) => setHospContact(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Facility Location / Address</label>
-                  <input
-                    type="text"
-                    required
-                    value={hospAddr}
-                    onChange={(e) => setHospAddr(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <button
-                  type="submit"
-                  className="flex items-center gap-1.5 rounded-xl bg-hospital-500 px-5 py-2.5 text-sm font-bold text-white shadow-premium hover:bg-hospital-600 focus:outline-none"
-                >
-                  <Save className="h-4.5 w-4.5" />
-                  <span>Save Metadata</span>
-                </button>
-              </div>
-            </form>
-          )}
+          {activeTab === 'hospital' &&
+            (hospitalSettings ? (
+              <HospitalMetadataForm settings={hospitalSettings} onSave={updateHospitalSettings} />
+            ) : (
+              <p className="text-sm text-slate-400">Loading hospital details…</p>
+            ))}
         </div>
       </div>
     </div>

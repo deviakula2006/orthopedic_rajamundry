@@ -6,8 +6,6 @@ import {
   Calendar,
   IndianRupee,
   Bed,
-  ArrowUpRight,
-  ArrowDownRight,
   TrendingUp,
   Stethoscope,
   Activity,
@@ -16,38 +14,37 @@ import {
 import orthoIll from '../../assets/ortho_ill.png';
 
 const Dashboard = () => {
-  const { patients, appointments, bills, beds, activities } = useHospital();
+  const { patients, doctors, receptionists, appointments, bills, beds, activities } = useHospital();
 
-  // Compute stats dynamically from state
+  // Compute stats from real data — no hardcoded base offsets.
   const patientCount = patients.length;
   const appointmentCount = appointments.length;
 
-  const totalRevenue = bills.reduce((acc, b) => acc + b.total, 0);
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const revenueToday = bills
+    .filter((b) => b.date === todayIso && b.paymentStatus === 'Paid')
+    .reduce((acc, b) => acc + b.total, 0);
   const formattedRevenue = new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
     maximumFractionDigits: 0
-  }).format(totalRevenue || 1245300);
+  }).format(revenueToday);
 
   const availableBeds = beds.filter((b) => b.status === 'Available').length;
+  const paidBillsCount = bills.filter((b) => b.paymentStatus === 'Paid').length;
+  const paidBillsPercent = bills.length > 0 ? Math.round((paidBillsCount / bills.length) * 100) : 100;
 
   const stats = [
     {
       title: 'Total Patients',
-      value: patientCount + 1238, // base + dynamic
-      change: '+12%',
-      isPositive: true,
-      timeframe: 'from last month',
+      value: patientCount,
       icon: Users,
       color: 'from-blue-500 to-indigo-500',
       bgLight: 'bg-blue-50'
     },
     {
       title: 'Appointments',
-      value: appointmentCount + 323, // base + dynamic
-      change: '+8%',
-      isPositive: true,
-      timeframe: 'from last week',
+      value: appointmentCount,
       icon: Calendar,
       color: 'from-hospital-500 to-cyanic-400',
       bgLight: 'bg-sky-50'
@@ -55,9 +52,6 @@ const Dashboard = () => {
     {
       title: "Today's Revenue",
       value: formattedRevenue,
-      change: '+15%',
-      isPositive: true,
-      timeframe: 'from yesterday',
       icon: IndianRupee,
       color: 'from-emerald-500 to-teal-500',
       bgLight: 'bg-emerald-50'
@@ -65,18 +59,72 @@ const Dashboard = () => {
     {
       title: 'Available Beds',
       value: `${availableBeds} / ${beds.length}`,
-      change: '-2',
-      isPositive: false,
-      timeframe: 'occupied today',
       icon: Bed,
       color: 'from-cyanic-500 to-teal-400',
       bgLight: 'bg-cyan-50'
     }
   ];
 
-  // SVG Chart constants
-  const lineChartPoints = "30,120 70,80 110,130 150,70 190,110 230,50 270,90 310,40 350,80 390,30 430,70 470,20";
-  const areaChartPoints = "30,120 70,80 110,130 150,70 190,110 230,50 270,90 310,40 350,80 390,30 430,70 470,20 470,150 30,150";
+  // ---- OPD Appointments Trend: real count of appointments per day, last 7 days ----
+  const CHART_LEFT = 30;
+  const CHART_RIGHT = 470;
+  const CHART_TOP = 20;
+  const CHART_BOTTOM = 150;
+
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    return d.toISOString().slice(0, 10);
+  });
+  const trendCounts = last7Days.map(
+    (iso) => appointments.filter((a) => a.date === iso && a.status !== 'Cancelled').length
+  );
+  const trendLabels = last7Days.map((iso) =>
+    new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short' })
+  );
+  const trendMax = Math.max(1, ...trendCounts); // avoid divide-by-zero; 1 keeps a flat-zero week from looking broken
+  const xStep = (CHART_RIGHT - CHART_LEFT) / (last7Days.length - 1);
+  const trendPositions = trendCounts.map((count, i) => ({
+    x: CHART_LEFT + i * xStep,
+    y: CHART_BOTTOM - (count / trendMax) * (CHART_BOTTOM - CHART_TOP),
+    count,
+    label: trendLabels[i]
+  }));
+  const lineChartPoints = trendPositions.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const areaChartPoints = `${lineChartPoints} ${CHART_RIGHT},${CHART_BOTTOM} ${CHART_LEFT},${CHART_BOTTOM}`;
+
+  // ---- Revenue Overview: real revenue breakdown by bill type ----
+  const REVENUE_COLORS = { OPD: '#0ea5e9', IPD: '#10b981', Pharmacy: '#f59e0b', Lab: '#8b5cf6' };
+  const revenueByType = { OPD: 0, IPD: 0, Pharmacy: 0, Lab: 0 };
+  bills.forEach((b) => {
+    revenueByType[b.billType] = (revenueByType[b.billType] || 0) + b.total;
+  });
+  const totalRevenueAllTime = Object.values(revenueByType).reduce((sum, v) => sum + v, 0);
+  const DONUT_CIRCUMFERENCE = 2 * Math.PI * 35;
+  let cumulativeOffset = 0;
+  const revenueSegments = Object.entries(revenueByType)
+    .filter(([, amount]) => amount > 0)
+    .map(([type, amount]) => {
+      const fraction = totalRevenueAllTime > 0 ? amount / totalRevenueAllTime : 0;
+      const length = fraction * DONUT_CIRCUMFERENCE;
+      const segment = {
+        type,
+        amount,
+        percent: Math.round(fraction * 100),
+        color: REVENUE_COLORS[type] || '#94a3b8',
+        dasharray: `${length.toFixed(2)} ${DONUT_CIRCUMFERENCE.toFixed(2)}`,
+        dashoffset: -cumulativeOffset
+      };
+      cumulativeOffset += length;
+      return segment;
+    });
+
+  const formatCompactINR = (amount) => {
+    if (amount >= 1e7) return `₹${(amount / 1e7).toFixed(2)}Cr`;
+    if (amount >= 1e5) return `₹${(amount / 1e5).toFixed(2)}L`;
+    if (amount >= 1e3) return `₹${(amount / 1e3).toFixed(1)}K`;
+    return `₹${amount}`;
+  };
 
   return (
     <div className="space-y-8">
@@ -130,23 +178,6 @@ const Dashboard = () => {
                 <span className="text-2xl font-bold tracking-tight text-slate-800">
                   {stat.value}
                 </span>
-                <div className="mt-2 flex items-center gap-1.5">
-                  <span
-                    className={`flex items-center gap-0.5 text-xs font-bold ${
-                      stat.isPositive ? 'text-emerald-600' : 'text-rose-500'
-                    }`}
-                  >
-                    {stat.isPositive ? (
-                      <ArrowUpRight className="h-3.5 w-3.5" />
-                    ) : (
-                      <ArrowDownRight className="h-3.5 w-3.5" />
-                    )}
-                    {stat.change}
-                  </span>
-                  <span className="text-xs font-medium text-slate-400">
-                    {stat.timeframe}
-                  </span>
-                </div>
               </div>
             </motion.div>
           );
@@ -164,7 +195,7 @@ const Dashboard = () => {
             </div>
             <div className="flex items-center gap-1 text-xs font-bold text-hospital-600 bg-sky-50 px-2.5 py-1.5 rounded-lg border border-sky-100">
               <TrendingUp className="h-3.5 w-3.5" />
-              <span>This Week</span>
+              <span>Last 7 Days</span>
             </div>
           </div>
 
@@ -172,9 +203,7 @@ const Dashboard = () => {
             <svg viewBox="0 0 500 160" className="h-full w-full overflow-visible">
               {/* Grid Lines */}
               <line x1="30" y1="20" x2="470" y2="20" stroke="#f1f5f9" strokeWidth="1" />
-              <line x1="30" y1="52.5" x2="470" y2="52.5" stroke="#f1f5f9" strokeWidth="1" />
               <line x1="30" y1="85" x2="470" y2="85" stroke="#f1f5f9" strokeWidth="1" />
-              <line x1="30" y1="117.5" x2="470" y2="117.5" stroke="#f1f5f9" strokeWidth="1" />
               <line x1="30" y1="150" x2="470" y2="150" stroke="#e2e8f0" strokeWidth="1" />
 
               {/* Area Gradient */}
@@ -199,24 +228,28 @@ const Dashboard = () => {
               />
 
               {/* Grid labels */}
-              <text x="12" y="24" className="text-[9px] font-bold fill-slate-400">100</text>
-              <text x="12" y="89" className="text-[9px] font-bold fill-slate-400">50</text>
+              <text x="12" y="24" className="text-[9px] font-bold fill-slate-400">{trendMax}</text>
+              {trendMax > 1 && (
+                <text x="12" y="89" className="text-[9px] font-bold fill-slate-400">{Math.round(trendMax / 2)}</text>
+              )}
               <text x="12" y="154" className="text-[9px] font-bold fill-slate-400">0</text>
 
-              <text x="30" y="172" className="text-[10px] font-bold fill-slate-400 text-center">Mon</text>
-              <text x="110" y="172" className="text-[10px] font-bold fill-slate-400 text-center">Wed</text>
-              <text x="190" y="172" className="text-[10px] font-bold fill-slate-400 text-center">Fri</text>
-              <text x="270" y="172" className="text-[10px] font-bold fill-slate-400 text-center">Sun</text>
-              <text x="350" y="172" className="text-[10px] font-bold fill-slate-400 text-center">Tue</text>
-              <text x="430" y="172" className="text-[10px] font-bold fill-slate-400 text-center">Thu</text>
+              {trendPositions.map((p) => (
+                <text
+                  key={p.label + p.x}
+                  x={p.x}
+                  y="172"
+                  textAnchor="middle"
+                  className="text-[10px] font-bold fill-slate-400"
+                >
+                  {p.label}
+                </text>
+              ))}
 
               {/* Interactive Dots */}
-              <circle cx="30" cy="120" r="5" fill="#ffffff" stroke="#0ea5e9" strokeWidth="2.5" />
-              <circle cx="150" cy="70" r="5" fill="#ffffff" stroke="#0ea5e9" strokeWidth="2.5" />
-              <circle cx="230" cy="50" r="5" fill="#ffffff" stroke="#0ea5e9" strokeWidth="2.5" />
-              <circle cx="310" cy="40" r="5" fill="#ffffff" stroke="#0ea5e9" strokeWidth="2.5" />
-              <circle cx="390" cy="30" r="5" fill="#ffffff" stroke="#0ea5e9" strokeWidth="2.5" />
-              <circle cx="470" cy="20" r="5" fill="#ffffff" stroke="#0ea5e9" strokeWidth="2.5" />
+              {trendPositions.map((p) => (
+                <circle key={`dot-${p.x}`} cx={p.x} cy={p.y} r="5" fill="#ffffff" stroke="#0ea5e9" strokeWidth="2.5" />
+              ))}
             </svg>
           </div>
         </div>
@@ -225,7 +258,7 @@ const Dashboard = () => {
         <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium flex flex-col justify-between">
           <div className="border-b border-slate-100 pb-4 mb-4">
             <h3 className="text-base font-bold text-slate-800">Revenue Overview</h3>
-            <p className="text-xs text-slate-400 font-semibold">Monthly income streams breakdown</p>
+            <p className="text-xs text-slate-400 font-semibold">All-time income streams breakdown</p>
           </div>
 
           <div className="relative flex items-center justify-center h-44 w-full">
@@ -233,79 +266,36 @@ const Dashboard = () => {
               {/* Background circle */}
               <circle cx="50" cy="50" r="35" fill="transparent" stroke="#f1f5f9" strokeWidth="12" />
 
-              {/* OPD segment - 42% (stroke-dasharray="42 100") */}
-              <circle
-                cx="50"
-                cy="50"
-                r="35"
-                fill="transparent"
-                stroke="#0ea5e9"
-                strokeWidth="12"
-                strokeDasharray="92.3 220"
-                strokeDashoffset="0"
-              />
-
-              {/* IPD segment - 33% (stroke-dashoffset="-92.3") */}
-              <circle
-                cx="50"
-                cy="50"
-                r="35"
-                fill="transparent"
-                stroke="#10b981"
-                strokeWidth="12"
-                strokeDasharray="72.5 220"
-                strokeDashoffset="-92.3"
-              />
-
-              {/* Pharmacy - 15% (stroke-dashoffset="-164.8") */}
-              <circle
-                cx="50"
-                cy="50"
-                r="35"
-                fill="transparent"
-                stroke="#f59e0b"
-                strokeWidth="12"
-                strokeDasharray="33 220"
-                strokeDashoffset="-164.8"
-              />
-
-              {/* Investigations - 10% (stroke-dashoffset="-197.8") */}
-              <circle
-                cx="50"
-                cy="50"
-                r="35"
-                fill="transparent"
-                stroke="#8b5cf6"
-                strokeWidth="12"
-                strokeDasharray="22 220"
-                strokeDashoffset="-197.8"
-              />
+              {revenueSegments.map((seg) => (
+                <circle
+                  key={seg.type}
+                  cx="50"
+                  cy="50"
+                  r="35"
+                  fill="transparent"
+                  stroke={seg.color}
+                  strokeWidth="12"
+                  strokeDasharray={seg.dasharray}
+                  strokeDashoffset={seg.dashoffset}
+                />
+              ))}
             </svg>
 
             {/* Total value text in the center */}
             <div className="absolute flex flex-col items-center justify-center">
               <span className="text-xs font-bold text-slate-400">Total</span>
-              <span className="text-base font-extrabold text-slate-800">₹12.45L</span>
+              <span className="text-base font-extrabold text-slate-800">{formatCompactINR(totalRevenueAllTime)}</span>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2 mt-4 text-[11px] font-bold text-slate-500">
-            <div className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-hospital-500"></span>
-              <span className="truncate">OPD - 42%</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
-              <span className="truncate">IPD - 33%</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-amber-500"></span>
-              <span className="truncate">Pharmacy - 15%</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-purple-500"></span>
-              <span className="truncate">Tests - 10%</span>
-            </div>
+            {revenueSegments.length === 0 && <span className="col-span-2 text-center text-slate-400">No billed revenue yet</span>}
+            {revenueSegments.map((seg) => (
+              <div key={seg.type} className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: seg.color }}></span>
+                <span className="truncate">{seg.type} - {seg.percent}%</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -375,7 +365,7 @@ const Dashboard = () => {
               </div>
               <div>
                 <span className="text-xs font-bold text-slate-400 block leading-none">Doctors</span>
-                <span className="text-xl font-extrabold text-slate-800">18 Panelists</span>
+                <span className="text-xl font-extrabold text-slate-800">{doctors.length} Panelists</span>
               </div>
             </div>
 
@@ -385,7 +375,7 @@ const Dashboard = () => {
               </div>
               <div>
                 <span className="text-xs font-bold text-slate-400 block leading-none">Reception Staff</span>
-                <span className="text-xl font-extrabold text-slate-800">8 Members</span>
+                <span className="text-xl font-extrabold text-slate-800">{receptionists.length} Members</span>
               </div>
             </div>
 
@@ -395,7 +385,7 @@ const Dashboard = () => {
               </div>
               <div>
                 <span className="text-xs font-bold text-slate-400 block leading-none">Total Beds</span>
-                <span className="text-xl font-extrabold text-slate-800">24 Allocated</span>
+                <span className="text-xl font-extrabold text-slate-800">{beds.length} Allocated</span>
               </div>
             </div>
 
@@ -405,7 +395,7 @@ const Dashboard = () => {
               </div>
               <div>
                 <span className="text-xs font-bold text-slate-400 block leading-none">Paid Bills</span>
-                <span className="text-xl font-extrabold text-slate-800">98% Success</span>
+                <span className="text-xl font-extrabold text-slate-800">{paidBillsPercent}% Success</span>
               </div>
             </div>
           </div>

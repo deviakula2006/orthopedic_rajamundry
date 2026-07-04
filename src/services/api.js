@@ -28,11 +28,19 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
-      // Clear credentials and force login if session expires
+    const isLoginRequest = error.config?.url?.includes('/auth/login');
+    // Don't force-redirect on a failed login attempt itself — that 401 just
+    // means "wrong credentials" and AuthContext.login() already surfaces it
+    // as an inline form error. Redirecting here would blow away the login
+    // page before the user ever sees that message.
+    if (error.response && error.response.status === 401 && !isLoginRequest) {
+      // Clear credentials and force login if an existing session expires.
+      // Uses BASE_URL (Vite's configured `base`) + the HashRouter's `#/`
+      // prefix so this lands on the actual login route instead of a bare
+      // `/login`, which 404s under a non-root base path.
       localStorage.removeItem('roh_admin_user');
       localStorage.removeItem('roh_auth_token');
-      window.location.href = '/login';
+      window.location.href = `${import.meta.env.BASE_URL}#/login`;
     }
     return Promise.reject(error);
   }

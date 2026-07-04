@@ -1,0 +1,28 @@
+import { Router } from 'express';
+import { authRouter } from '../modules/auth/auth.routes.js';
+import { patientsRouter } from '../modules/patients/patients.routes.js';
+import { doctorsRouter } from '../modules/doctors/doctors.routes.js';
+import { receptionistsRouter } from '../modules/receptionists/receptionists.routes.js';
+import { investigationsRouter } from '../modules/investigations/investigations.routes.js';
+import { wardsRouter } from '../modules/wards/wards.routes.js';
+import { bedsRouter } from '../modules/beds/beds.routes.js';
+import { appointmentsRouter } from '../modules/appointments/appointments.routes.js';
+import { billsRouter } from '../modules/bills/bills.routes.js';
+import { activitiesRouter } from '../modules/activities/activities.routes.js';
+import { dashboardRouter } from '../modules/dashboard/dashboard.routes.js';
+import { hospitalSettingsRouter } from '../modules/hospitalSettings/hospitalSettings.routes.js';
+
+export const apiRouter = Router();
+
+apiRouter.use('/auth', authRouter);
+apiRouter.use('/patients', patientsRouter);
+apiRouter.use('/doctors', doctorsRouter);
+apiRouter.use('/receptionists', receptionistsRouter);
+apiRouter.use('/investigations', investigationsRouter);
+apiRouter.use('/wards', wardsRouter);
+apiRouter.use('/beds', bedsRouter);
+apiRouter.use('/appointments', appointmentsRouter);
+apiRouter.use('/bills', billsRouter);
+apiRouter.use('/activities', activitiesRouter);
+apiRouter.use('/dashboard', dashboardRouter);
+apiRouter.use('/hospital-settings', hospitalSettingsRouter);

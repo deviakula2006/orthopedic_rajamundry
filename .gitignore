@@ -12,10 +12,19 @@ dist
 dist-ssr
 *.local
 
+# Env files (frontend build-time config; no secrets expected, but keep local)
+.env
+.env.*
+!.env.example
+!.env.test.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 .idea
+
+# Claude Code local tool permissions (machine-specific, not shared config)
+.claude/settings.local.json
 .DS_Store
 *.suo
 *.ntvs*

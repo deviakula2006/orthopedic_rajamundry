@@ -23,7 +23,7 @@ const Appointments = () => {
     patientId: '',
     doctorId: '',
     date: '',
-    time: '10:00 AM',
+    time: '10:00',
     type: 'Consultation',
     fee: 500
   });
@@ -33,7 +33,7 @@ const Appointments = () => {
       patientId: patients[0]?.id || '',
       doctorId: doctors[0]?.id || '',
       date: new Date().toISOString().split('T')[0],
-      time: '10:00 AM',
+      time: '10:00',
       type: 'Consultation',
       fee: 500
     });
@@ -268,11 +268,10 @@ const Appointments = () => {
                   <Clock className="h-4 w-4" />
                 </span>
                 <input
-                  type="text"
+                  type="time"
                   required
                   value={formData.time}
                   onChange={(e) => setFormData({ ...formData, time: e.target.value })}
-                  placeholder="e.g. 10:30 AM"
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
                 />
               </div>
@@ -289,7 +288,7 @@ const Appointments = () => {
               >
                 <option value="Consultation">Consultation</option>
                 <option value="Therapy">Therapy / Rehab</option>
-                <option value="Surgery Checkup">Surgery Checkup</option>
+                <option value="Surgery">Surgery Checkup</option>
                 <option value="Follow Up">Follow Up</option>
               </select>
             </div>

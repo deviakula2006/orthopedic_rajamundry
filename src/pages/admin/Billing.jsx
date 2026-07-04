@@ -5,7 +5,7 @@ import { Modal } from '../../components/ui/Modal';
 import { Plus, Printer, Trash2, Eye, Receipt, User, Stethoscope, PlusCircle, CheckCircle } from 'lucide-react';
 
 const Billing = () => {
-  const { bills, patients, doctors, addBill, updateBillStatus } = useHospital();
+  const { bills, patients, doctors, addBill, getBillDetail, updateBillStatus } = useHospital();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
@@ -13,7 +13,7 @@ const Billing = () => {
 
   // Form states
   const [patientId, setPatientId] = useState('');
-  const [doctorName, setDoctorName] = useState('');
+  const [doctorId, setDoctorId] = useState('');
   const [billType, setBillType] = useState('OPD');
   const [paymentMode, setPaymentMode] = useState('UPI');
   const [paymentStatus, setPaymentStatus] = useState('Paid');
@@ -29,7 +29,7 @@ const Billing = () => {
 
   const handleOpenCreate = () => {
     setPatientId(patients[0]?.id || '');
-    setDoctorName(doctors[0]?.name || 'Dr. Arjun Kumar');
+    setDoctorId(doctors[0]?.id || '');
     setBillType('OPD');
     setPaymentMode('UPI');
     setPaymentStatus('Paid');
@@ -66,29 +66,27 @@ const Billing = () => {
     return { subTotal, tax, total };
   };
 
-  const handleCreateSubmit = (e) => {
+  const handleCreateSubmit = async (e) => {
     e.preventDefault();
     if (billItems.length === 0) {
       alert("Please add at least one item to generate a bill.");
       return;
     }
 
-    const pat = patients.find((p) => p.id === patientId) || { name: 'Walk-In Patient' };
-    const { subTotal, tax, total } = calculateTotals();
+    const { tax } = calculateTotals();
 
-    const newBill = addBill({
+    const newBill = await addBill({
       patientId,
-      patientName: pat.name,
       billType,
-      doctorName,
+      doctorId,
       paymentMode,
       paymentStatus,
       items: billItems,
-      subTotal,
       discount: parseFloat(discount || 0),
-      tax,
-      total
+      tax
     });
+
+    if (!newBill) return; // addBill already surfaced an error toast
 
     setIsCreateOpen(false);
     // Auto-open generated invoice for preview
@@ -96,8 +94,10 @@ const Billing = () => {
     setIsInvoiceOpen(true);
   };
 
-  const handleOpenInvoice = (bill) => {
-    setSelectedBill(bill);
+  const handleOpenInvoice = async (bill) => {
+    const fullBill = await getBillDetail(bill.invoiceNo);
+    if (!fullBill) return;
+    setSelectedBill(fullBill);
     setIsInvoiceOpen(true);
   };
 
@@ -226,12 +226,12 @@ const Billing = () => {
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Treating Consultant</label>
               <select
-                value={doctorName}
-                onChange={(e) => setDoctorName(e.target.value)}
+                value={doctorId}
+                onChange={(e) => setDoctorId(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3 text-sm text-slate-700 focus:outline-none"
               >
                 {doctors.map((d) => (
-                  <option key={d.id} value={d.name}>{d.name}</option>
+                  <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
               </select>
             </div>
@@ -333,7 +333,7 @@ const Billing = () => {
                   <option value="UPI">UPI / Net Banking</option>
                   <option value="Cash">Cash</option>
                   <option value="Card">Card Swap</option>
-                  <option value="Insurance Claim">Insurance Claim</option>
+                  <option value="Insurance">Insurance Claim</option>
                 </select>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
