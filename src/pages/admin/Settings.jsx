@@ -10,7 +10,7 @@ const Settings = () => {
   const [activeTab, setActiveTab] = useState('profile');
 
   // Profile forms
-  const [profileName, setProfileName] = useState(user?.name || 'Super Admin');
+  const [profileName, setProfileName] = useState(user?.name || 'Admin');
   const [profileEmail, setProfileEmail] = useState(user?.email || 'admin@roh.com');
 
   // Password forms

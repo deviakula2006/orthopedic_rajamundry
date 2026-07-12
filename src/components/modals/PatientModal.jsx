@@ -1,59 +1,69 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 
-const PatientModal = ({ isOpen, onClose, onSave, patient = null }) => {
+const PatientModal = ({
+  isOpen,
+  onClose,
+  onSave,
+  patient = null
+}) => {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [age, setAge] = useState('');
   const [gender, setGender] = useState('Male');
   const [bloodGroup, setBloodGroup] = useState('O+');
-  const [disease, setDisease] = useState('');
+  const [diagnosis, setDiagnosis] = useState('');
   const [address, setAddress] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (patient) {
       setName(patient.name || '');
       setPhone(patient.phone || '');
-      setAge(patient.age || '');
+      setAge(patient.age ?? '');
       setGender(patient.gender || 'Male');
       setBloodGroup(patient.bloodGroup || 'O+');
-      setDisease(patient.disease || '');
+      setDiagnosis(patient.diagnosis || '');
       setAddress(patient.address || '');
     } else {
       setName('');
-      phoneSet('');
+      setPhone('');
       setAge('');
       setGender('Male');
       setBloodGroup('O+');
-      setDisease('');
+      setDiagnosis('');
       setAddress('');
     }
   }, [patient, isOpen]);
 
-  const phoneSet = (val) => {
-    setPhone(val);
-  };
-
-  const handleSubmit = (e, bookAppointment = false) => {
+  const handleSubmit = async (e, bookAppointment = false) => {
     e.preventDefault();
-    if (!name || !phone) return;
+
+    if (!name.trim() || !phone.trim() || age === '') {
+      return;
+    }
 
     const patientData = {
-      name,
-      phone,
-      age: parseInt(age) || 0,
+      name: name.trim(),
+      phone: phone.trim(),
+      age: Number(age),
       gender,
       bloodGroup,
-      disease,
-      address
+      diagnosis: diagnosis.trim(),
+      address: address.trim()
     };
 
-    if (patient) {
-      onSave(patient.id, patientData);
-    } else {
-      onSave(patientData, bookAppointment);
+    setIsSubmitting(true);
+
+    try {
+      const result = await onSave(patientData, bookAppointment);
+
+      if (result) {
+        onClose();
+      }
+    } finally {
+      setIsSubmitting(false);
     }
-    onClose();
   };
 
   return (
@@ -63,12 +73,16 @@ const PatientModal = ({ isOpen, onClose, onSave, patient = null }) => {
       title={patient ? 'Edit Patient Details' : 'Register New Patient'}
       size="md"
     >
-      <form onSubmit={(e) => handleSubmit(e, false)} className="space-y-4">
+      <form
+        onSubmit={(e) => handleSubmit(e, false)}
+        className="space-y-4"
+      >
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
               Full Name
             </label>
+
             <input
               type="text"
               required
@@ -78,10 +92,12 @@ const PatientModal = ({ isOpen, onClose, onSave, patient = null }) => {
               className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 placeholder-slate-400 focus:border-hospital-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-hospital-500 transition-all"
             />
           </div>
+
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
               Phone Number
             </label>
+
             <input
               type="tel"
               required
@@ -98,19 +114,24 @@ const PatientModal = ({ isOpen, onClose, onSave, patient = null }) => {
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
               Age
             </label>
+
             <input
               type="number"
               required
+              min="0"
+              max="150"
               value={age}
               onChange={(e) => setAge(e.target.value)}
               placeholder="Age"
               className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 placeholder-slate-400 focus:border-hospital-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-hospital-500 transition-all"
             />
           </div>
+
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
               Gender
             </label>
+
             <select
               value={gender}
               onChange={(e) => setGender(e.target.value)}
@@ -121,10 +142,12 @@ const PatientModal = ({ isOpen, onClose, onSave, patient = null }) => {
               <option value="Other">Other</option>
             </select>
           </div>
+
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
               Blood Group
             </label>
+
             <select
               value={bloodGroup}
               onChange={(e) => setBloodGroup(e.target.value)}
@@ -146,10 +169,11 @@ const PatientModal = ({ isOpen, onClose, onSave, patient = null }) => {
           <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
             Diagnosis / Reason
           </label>
+
           <input
             type="text"
-            value={disease}
-            onChange={(e) => setDisease(e.target.value)}
+            value={diagnosis}
+            onChange={(e) => setDiagnosis(e.target.value)}
             placeholder="e.g. Osteoarthritis Knee, Ligament Tear ACL"
             className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 placeholder-slate-400 focus:border-hospital-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-hospital-500 transition-all"
           />
@@ -159,36 +183,42 @@ const PatientModal = ({ isOpen, onClose, onSave, patient = null }) => {
           <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
             Home Address
           </label>
+
           <textarea
             rows="3"
             value={address}
             onChange={(e) => setAddress(e.target.value)}
             placeholder="Enter home address details..."
             className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 placeholder-slate-400 focus:border-hospital-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-hospital-500 transition-all resize-none"
-          ></textarea>
+          />
         </div>
 
         <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
           <button
             type="button"
             onClick={onClose}
+            disabled={isSubmitting}
             className="rounded-xl border border-slate-200 py-2.5 px-4 text-xs font-bold text-slate-500 hover:bg-slate-50 transition-colors cursor-pointer"
           >
             Cancel
           </button>
+
           <button
             type="submit"
-            className="rounded-xl bg-hospital-500 hover:bg-hospital-600 py-2.5 px-4 text-xs font-bold text-white shadow-premium transition-colors cursor-pointer"
+            disabled={isSubmitting}
+            className="rounded-xl bg-hospital-500 hover:bg-hospital-600 py-2.5 px-4 text-xs font-bold text-white shadow-premium transition-colors cursor-pointer disabled:opacity-60"
           >
-            Save Patient
+            {isSubmitting ? 'Saving...' : 'Save Patient'}
           </button>
+
           {!patient && (
             <button
               type="button"
+              disabled={isSubmitting}
               onClick={(e) => handleSubmit(e, true)}
-              className="rounded-xl bg-gradient-to-r from-hospital-500 to-cyanic-500 hover:from-hospital-600 hover:to-cyanic-600 py-2.5 px-4 text-xs font-bold text-white shadow-premium transition-colors cursor-pointer"
+              className="rounded-xl bg-gradient-to-r from-hospital-500 to-cyanic-500 hover:from-hospital-600 hover:to-cyanic-600 py-2.5 px-4 text-xs font-bold text-white shadow-premium transition-colors cursor-pointer disabled:opacity-60"
             >
-              Save & Book Appointment
+              {isSubmitting ? 'Saving...' : 'Save & Book Appointment'}
             </button>
           )}
         </div>

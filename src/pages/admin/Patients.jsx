@@ -23,24 +23,34 @@ const Patients = () => {
   const [selectedPatientId, setSelectedPatientId] = useState('');
 
   // Save flow
-  const handleSavePatient = (patientData, bookAppointment = false) => {
-    const newPatient = addPatient(patientData);
-    if (bookAppointment && newPatient) {
-      setSelectedPatientId(newPatient.id);
-      setAppointmentModalOpen(true);
-    }
-  };
+  // Save flow
+const handleSavePatient = async (patientData, bookAppointment = false) => {
+  const newPatient = await addPatient(patientData);
 
-  const handleEditPatient = (id, patientData) => {
-    editPatient(id, patientData);
-  };
+  if (newPatient && bookAppointment) {
+    setSelectedPatientId(newPatient.id);
+    setAppointmentModalOpen(true);
+  }
 
-  const handleConfirmDelete = () => {
-    if (selectedPatientId) {
-      deletePatient(selectedPatientId);
-      setSelectedPatientId('');
-    }
-  };
+  return newPatient;
+};
+
+const handleEditPatient = async (id, patientData) => {
+  return await editPatient(id, patientData);
+};
+
+const handleConfirmDelete = async () => {
+  if (!selectedPatientId) {
+    return;
+  }
+
+  const deleted = await deletePatient(selectedPatientId);
+
+  if (deleted) {
+    setDeleteConfirmOpen(false);
+    setSelectedPatientId('');
+  }
+};
 
   // Filter patients based on search
   const filteredPatients = useMemo(() => {
@@ -49,17 +59,21 @@ const Patients = () => {
       (p) =>
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.phone.includes(searchQuery) ||
-        p.id.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+        p.code?.toLowerCase().includes(searchQuery.toLowerCase())
+      );
   }, [patients, searchQuery]);
 
   const columns = [
     {
-      key: 'id',
-      header: 'Patient ID',
-      sortable: true,
-      render: (row) => <span className="font-bold text-hospital-600">{row.id}</span>
-    },
+  key: 'code',
+  header: 'Patient ID',
+  sortable: true,
+  render: (row) => (
+    <span className="font-bold text-hospital-600">
+      {row.code}
+    </span>
+  )
+},
     {
       key: 'name',
       header: 'Patient Name',
@@ -89,11 +103,15 @@ const Patients = () => {
       )
     },
     {
-      key: 'lastVisit',
-      header: 'Last Visit',
-      sortable: true,
-      render: (row) => <span className="text-slate-400 font-semibold">{row.lastVisit}</span>
-    }
+  key: 'lastVisitDate',
+  header: 'Last Visit',
+  sortable: true,
+  render: (row) => (
+    <span className="text-slate-400 font-semibold">
+      {row.lastVisitDate || '-'}
+    </span>
+  )
+}
   ];
 
   return (
@@ -207,7 +225,9 @@ const Patients = () => {
               </div>
               <div>
                 <h4 className="text-sm font-bold text-slate-800">{selectedPatient.name}</h4>
-                <span className="text-[10px] text-slate-400 block mt-0.5">ID: {selectedPatient.id}</span>
+                <span className="text-[10px] text-slate-400 block mt-0.5">
+  ID: {selectedPatient.code}
+</span>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4 py-2 border-b">
@@ -227,7 +247,9 @@ const Patients = () => {
               </div>
               <div>
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Diagnosis / Disease</span>
-                <p className="text-slate-800 mt-1">{selectedPatient.disease || 'General checkup'}</p>
+                <p className="text-slate-800 mt-1">
+  {selectedPatient.diagnosis || 'General checkup'}
+</p>
               </div>
             </div>
             <div>

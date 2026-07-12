@@ -10,7 +10,7 @@ const Login = () => {
   const navigate = useNavigate();
 
   const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [password, setPassword] = useState('Admin@123');
   const [role, setRole] = useState('Admin');
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
@@ -18,29 +18,43 @@ const Login = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setIsSubmitting(true);
+  e.preventDefault();
 
-    try {
-      const result = await login(username, password, role);
-      if (result.success) {
-        if (result.role === 'Admin') {
-          navigate('/admin/dashboard');
-        } else if (result.role === 'Receptionist') {
-          navigate('/receptionist/dashboard');
-        } else if (result.role === 'Doctor') {
-          navigate('/doctor/dashboard');
-        }
-      } else {
-        setError(result.message);
-      }
-    } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
-    } finally {
-      setIsSubmitting(false);
+  setError('');
+  setIsSubmitting(true);
+
+  try {
+    const result = await login(username, password, role);
+
+    if (!result.success) {
+      setError(result.message);
+      return;
     }
-  };
+
+    const loggedInRole = result.user.role;
+
+    console.log('Logged-in user:', result.user);
+    console.log('Logged-in role:', loggedInRole);
+
+    if (loggedInRole === 'Admin') {
+      navigate('/admin/dashboard');
+    } else if (loggedInRole === 'Receptionist') {
+      navigate('/receptionist/dashboard');
+    } else if (loggedInRole === 'Doctor') {
+      navigate('/doctor/dashboard');
+    } else {
+      setError(`Unsupported user role: ${loggedInRole}`);
+    }
+  } catch (error) {
+    console.error('Unexpected login error:', error);
+
+    setError(
+      'An unexpected error occurred. Please try again.'
+    );
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   const handleQuickLogin = (u, p, r) => {
     setUsername(u);
@@ -146,7 +160,7 @@ const Login = () => {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter password (e.g., admin123)"
+                    placeholder="Enter your password"
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-11 pr-11 text-sm font-semibold text-slate-700 placeholder-slate-400 focus:border-hospital-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-hospital-500 transition-all"
                   />
                   <button
@@ -193,34 +207,41 @@ const Login = () => {
             </form>
 
             {/* Quick Testing Login Controls */}
-            <div className="mt-6 border-t pt-4">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
-                Quick Role Tester
-              </span>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleQuickLogin('admin', 'admin123', 'Admin')}
-                  className="rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 py-1.5 px-3 text-xs font-bold text-slate-700 transition-all cursor-pointer"
-                >
-                  Admin Login
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickLogin('receptionist', 'receptionist123', 'Receptionist')}
-                  className="rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 py-1.5 px-3 text-xs font-bold text-slate-700 transition-all cursor-pointer"
-                >
-                  Receptionist Login
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickLogin('doctor', 'doctor123', 'Doctor')}
-                  className="rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 py-1.5 px-3 text-xs font-bold text-slate-700 transition-all cursor-pointer"
-                >
-                  Doctor Login
-                </button>
-              </div>
-            </div>
+<div className="mt-6 border-t pt-4">
+  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
+    Quick Role Tester
+  </span>
+
+  <div className="flex flex-wrap gap-2">
+    <button
+      type="button"
+      onClick={() =>
+        handleQuickLogin('admin', 'Admin@123', 'Admin')
+      }
+      className="rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 py-1.5 px-3 text-xs font-bold text-slate-700 transition-all cursor-pointer"
+    >
+      Admin Login
+    </button>
+
+    <button
+      type="button"
+      disabled
+      title="Create a Receptionist login account from the Admin dashboard first"
+      className="rounded-lg border border-slate-200 bg-slate-100 py-1.5 px-3 text-xs font-bold text-slate-400 cursor-not-allowed"
+    >
+      Receptionist Login
+    </button>
+
+    <button
+      type="button"
+      disabled
+      title="Create a Doctor login account from the Admin dashboard first"
+      className="rounded-lg border border-slate-200 bg-slate-100 py-1.5 px-3 text-xs font-bold text-slate-400 cursor-not-allowed"
+    >
+      Doctor Login
+    </button>
+  </div>
+</div>
           </motion.div>
         </div>
 

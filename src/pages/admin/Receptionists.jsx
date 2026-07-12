@@ -57,43 +57,81 @@ const Receptionists = () => {
     setIsEditOpen(true);
   };
 
-  const handleAddSubmit = (e) => {
-    e.preventDefault();
-    addReceptionist(formData);
+ const handleAddSubmit = async (e) => {
+  e.preventDefault();
+
+  const createdReceptionist = await addReceptionist(formData);
+
+  if (createdReceptionist) {
     setIsAddOpen(false);
-  };
+  }
+};
 
-  const handleEditSubmit = (e) => {
-    e.preventDefault();
-    editReceptionist(selectedRec.id, formData);
+const handleEditSubmit = async (e) => {
+  e.preventDefault();
+
+  if (!selectedRec) {
+    return;
+  }
+
+  const updatedReceptionist = await editReceptionist(
+    selectedRec.id,
+    formData
+  );
+
+  if (updatedReceptionist) {
     setIsEditOpen(false);
-  };
+    setSelectedRec(null);
+  }
+};
 
-  const triggerStatusToggle = (rec) => {
-    setRecToToggle(rec);
-    setStatusConfirmOpen(true);
-  };
+const triggerStatusToggle = (rec) => {
+  setRecToToggle(rec);
+  setStatusConfirmOpen(true);
+};
 
-  const handleConfirmStatusToggle = () => {
-    if (recToToggle) {
-      const newStatus = recToToggle.status === 'Active' ? 'Inactive' : 'Active';
-      editReceptionist(recToToggle.id, { ...recToToggle, status: newStatus });
-      showToast(`Receptionist ${recToToggle.name} status updated to ${newStatus}!`);
-      setRecToToggle(null);
+const handleConfirmStatusToggle = async () => {
+  if (!recToToggle) {
+    return;
+  }
+
+  const newStatus =
+    recToToggle.status === 'Active' ? 'Inactive' : 'Active';
+
+  const updatedReceptionist = await editReceptionist(
+    recToToggle.id,
+    {
+      name: recToToggle.name,
+      phone: recToToggle.phone,
+      email: recToToggle.email,
+      shift: recToToggle.shift,
+      status: newStatus
     }
-  };
+  );
 
-  const triggerDelete = (id) => {
-    setSelectedRecId(id);
-    setDeleteConfirmOpen(true);
-  };
+  if (updatedReceptionist) {
+    setStatusConfirmOpen(false);
+    setRecToToggle(null);
+  }
+};
 
-  const handleConfirmDelete = () => {
-    if (selectedRecId) {
-      deleteReceptionist(selectedRecId);
-      setSelectedRecId('');
-    }
-  };
+const triggerDelete = (id) => {
+  setSelectedRecId(id);
+  setDeleteConfirmOpen(true);
+};
+
+const handleConfirmDelete = async () => {
+  if (!selectedRecId) {
+    return;
+  }
+
+  const deleted = await deleteReceptionist(selectedRecId);
+
+  if (deleted) {
+    setDeleteConfirmOpen(false);
+    setSelectedRecId('');
+  }
+};
 
   const columns = [
     {

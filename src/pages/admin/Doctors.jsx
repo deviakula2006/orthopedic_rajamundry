@@ -21,8 +21,19 @@ const Doctors = () => {
 
   // Form states
   const [formData, setFormData] = useState({
+  name: '',
+  specialization: '',
+  phone: '',
+  email: '',
+  experience: '',
+  availability: '',
+  status: 'Active'
+});
+
+  const handleOpenAdd = () => {
+  setFormData({
     name: '',
-    specialization: 'Joint Replacement Surgeon',
+    specialization: '',
     phone: '',
     email: '',
     experience: '',
@@ -30,18 +41,8 @@ const Doctors = () => {
     status: 'Active'
   });
 
-  const handleOpenAdd = () => {
-    setFormData({
-      name: '',
-      specialization: 'Joint Replacement Surgeon',
-      phone: '',
-      email: '',
-      experience: '',
-      availability: '',
-      status: 'Active'
-    });
-    setIsAddOpen(true);
-  };
+  setIsAddOpen(true);
+};
 
   const handleOpenEdit = (doc) => {
     setSelectedDoctor(doc);
@@ -57,16 +58,32 @@ const Doctors = () => {
     setIsEditOpen(true);
   };
 
-  const handleAddSubmit = (e) => {
+   const handleAddSubmit = async (e) => {
     e.preventDefault();
-    addDoctor(formData);
-    setIsAddOpen(false);
+
+    const createdDoctor = await addDoctor(formData);
+
+    if (createdDoctor) {
+      setIsAddOpen(false);
+    }
   };
 
-  const handleEditSubmit = (e) => {
+  const handleEditSubmit = async (e) => {
     e.preventDefault();
-    editDoctor(selectedDoctor.id, formData);
-    setIsEditOpen(false);
+
+    if (!selectedDoctor) {
+      return;
+    }
+
+    const updatedDoctor = await editDoctor(
+      selectedDoctor.id,
+      formData
+    );
+
+    if (updatedDoctor) {
+      setIsEditOpen(false);
+      setSelectedDoctor(null);
+    }
   };
 
   const triggerStatusToggle = (doc) => {
@@ -74,9 +91,17 @@ const Doctors = () => {
     setStatusConfirmOpen(true);
   };
 
-  const handleConfirmStatusToggle = () => {
-    if (doctorToToggle) {
-      toggleDoctorStatus(doctorToToggle.id);
+  const handleConfirmStatusToggle = async () => {
+    if (!doctorToToggle) {
+      return;
+    }
+
+    const updatedDoctor = await toggleDoctorStatus(
+      doctorToToggle.id
+    );
+
+    if (updatedDoctor) {
+      setStatusConfirmOpen(false);
       setDoctorToToggle(null);
     }
   };
@@ -86,24 +111,20 @@ const Doctors = () => {
     setDeleteConfirmOpen(true);
   };
 
-  const handleConfirmDelete = () => {
-    if (selectedDoctorId) {
-      deleteDoctor(selectedDoctorId);
+  const handleConfirmDelete = async () => {
+    if (!selectedDoctorId) {
+      return;
+    }
+
+    const deleted = await deleteDoctor(selectedDoctorId);
+
+    if (deleted) {
+      setDeleteConfirmOpen(false);
       setSelectedDoctorId('');
     }
   };
 
-  const specializations = [
-    'Orthopedic Surgeon',
-    'Joint Replacement Surgeon',
-    'Spine Surgery Specialist',
-    'Sports Medicine Specialist',
-    'Pediatric Orthopedist',
-    'Physiotherapist',
-    'Anesthesiologist',
-    'Radiologist',
-    'General Physician'
-  ];
+  
 
   const columns = [
     {
@@ -241,17 +262,19 @@ const Doctors = () => {
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                 Specialization
               </label>
-              <select
-                value={formData.specialization}
-                onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all cursor-pointer"
-              >
-                {specializations.map((spec) => (
-                  <option key={spec} value={spec}>
-                    {spec}
-                  </option>
-                ))}
-              </select>
+              <input
+  type="text"
+  required
+  value={formData.specialization}
+  onChange={(e) =>
+    setFormData({
+      ...formData,
+      specialization: e.target.value
+    })
+  }
+  placeholder="e.g. Orthopedic Surgeon"
+  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
+/>
             </div>
           </div>
 
@@ -351,17 +374,19 @@ const Doctors = () => {
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                 Specialization
               </label>
-              <select
-                value={formData.specialization}
-                onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all cursor-pointer"
-              >
-                {specializations.map((spec) => (
-                  <option key={spec} value={spec}>
-                    {spec}
-                  </option>
-                ))}
-              </select>
+              <input
+  type="text"
+  required
+  value={formData.specialization}
+  onChange={(e) =>
+    setFormData({
+      ...formData,
+      specialization: e.target.value
+    })
+  }
+  placeholder="e.g. Orthopedic Surgeon"
+  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
+/>
             </div>
           </div>
 
