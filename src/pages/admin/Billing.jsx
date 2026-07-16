@@ -102,7 +102,7 @@ const Billing = () => {
     return { subTotal, tax, total };
   };
 
-  const handleCreateSubmit = (e) => {
+  const handleCreateSubmit = async (e) => {
     e.preventDefault();
     if (!patientId) {
       alert('Please select a patient.');
@@ -119,7 +119,7 @@ const Billing = () => {
 
     const { subTotal, tax, total } = calculateTotals();
 
-    const newBill = addBill({
+    const newBill = await addBill({
       patientId,
       patientName: activePatientObj?.name || 'Walk-In Patient',
       billType,
@@ -134,9 +134,11 @@ const Billing = () => {
       total
     });
 
-    setIsCreateOpen(false);
-    setSelectedBill(newBill);
-    setIsInvoiceOpen(true);
+    if (newBill) {
+      setIsCreateOpen(false);
+      setSelectedBill(newBill);
+      setIsInvoiceOpen(true);
+    }
   };
 
   const handleOpenInvoice = (bill) => {

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useHospital } from '../../context/HospitalContext';
+import { useAuth } from '../../context/AuthContext';
 import {
   Users,
   Calendar,
@@ -18,6 +19,7 @@ import AppointmentModal from '../../components/modals/AppointmentModal';
 
 const ReceptionistDashboard = () => {
   const { patients, appointments, bills, addPatient } = useHospital();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   // Modal States
@@ -25,7 +27,7 @@ const ReceptionistDashboard = () => {
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
 
   // Compute Receptionist KPIs
-  const todayStr = '2026-06-21';
+  const todayStr = new Date().toISOString().slice(0, 10);
   
   // Total Registrations Today
   const registrationsTodayCount = patients.filter((p) => p.registrationDate === todayStr).length;
@@ -108,7 +110,7 @@ const ReceptionistDashboard = () => {
           Front Desk Console
         </span>
         <h2 className="text-xl md:text-2xl font-extrabold tracking-tight">
-          Welcome, Laxmi Kumari
+          Welcome, {user?.name || 'Laxmi Kumari'}
         </h2>
         <p className="mt-1 text-xs md:text-sm text-slate-100 font-semibold leading-relaxed">
           Manage patient registrations, schedule joint diagnostic checkups, assign recovery wards, and process billing invoices.

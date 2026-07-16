@@ -11,6 +11,7 @@ import { billsRouter } from '../modules/bills/bills.routes.js';
 import { activitiesRouter } from '../modules/activities/activities.routes.js';
 import { dashboardRouter } from '../modules/dashboard/dashboard.routes.js';
 import { hospitalSettingsRouter } from '../modules/hospitalSettings/hospitalSettings.routes.js';
+import { reportsRouter } from '../modules/reports/reports.routes.js';
 
 export const apiRouter = Router();
 
@@ -26,3 +27,4 @@ apiRouter.use('/bills', billsRouter);
 apiRouter.use('/activities', activitiesRouter);
 apiRouter.use('/dashboard', dashboardRouter);
 apiRouter.use('/hospital-settings', hospitalSettingsRouter);
+apiRouter.use('/reports', reportsRouter);

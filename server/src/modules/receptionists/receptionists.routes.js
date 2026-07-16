@@ -13,14 +13,15 @@ export const receptionistsRouter = Router();
 
 const ADMIN_ROLES = ['Admin'];
 
-receptionistsRouter.use(authenticate, requireRole(...ADMIN_ROLES));
+receptionistsRouter.use(authenticate);
 
 receptionistsRouter.get('/', validate({ query: listReceptionistsQuerySchema }), receptionistsController.list);
 receptionistsRouter.get('/:id', validate({ params: idParamSchema }), receptionistsController.getById);
-receptionistsRouter.post('/', validate({ body: createReceptionistSchema }), receptionistsController.create);
+receptionistsRouter.post('/', requireRole(...ADMIN_ROLES), validate({ body: createReceptionistSchema }), receptionistsController.create);
 receptionistsRouter.put(
   '/:id',
+  requireRole(...ADMIN_ROLES),
   validate({ params: idParamSchema, body: updateReceptionistSchema }),
   receptionistsController.update
 );
-receptionistsRouter.delete('/:id', validate({ params: idParamSchema }), receptionistsController.remove);
+receptionistsRouter.delete('/:id', requireRole(...ADMIN_ROLES), validate({ params: idParamSchema }), receptionistsController.remove);

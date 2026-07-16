@@ -1,8 +1,12 @@
+import bcrypt from 'bcryptjs';
+import { env } from '../../config/env.js';
 import * as doctorsRepository from './doctors.repository.js';
 import { serializeDoctor } from './doctors.serializer.js';
 import { logActivity } from '../activities/activities.repository.js';
 import { buildMeta } from '../../utils/pagination.js';
 import { ApiError } from '../../utils/ApiError.js';
+import * as usersRepository from '../users/users.repository.js';
+import { withTransaction } from '../../config/db.js';
 
 export async function listDoctors({ page, limit, offset, search, status }) {
   const { rows, total } = await doctorsRepository.list({ limit, offset, search, status });
@@ -16,21 +20,103 @@ export async function getDoctor(id) {
 }
 
 export async function createDoctor(data, actor) {
-  const row = await doctorsRepository.create(data);
+  // 1. Check if email already exists
+  const existingUser = await usersRepository.findByUsernameOrEmail(data.email);
+  if (existingUser) {
+    throw ApiError.badRequest('Email is already registered');
+  }
+
+  // 2. Hash password
+  const passwordHash = await bcrypt.hash(data.password, env.BCRYPT_SALT_ROUNDS);
+
+  // 3. Run transaction
+  const resultDoctor = await withTransaction(async (client) => {
+    // 3.1 Find Doctor role ID
+    const roleId = await usersRepository.findRoleIdByName('Doctor', client);
+    if (!roleId) throw ApiError.internal('Role "Doctor" not found in database');
+
+    // 3.2 Generate a unique, stable username
+    let baseUsername = data.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 40);
+    if (!baseUsername) baseUsername = 'doctor';
+    let username = baseUsername;
+    let counter = 1;
+    while (await usersRepository.findByUsernameOrEmail(username, client)) {
+      username = `${baseUsername}${counter}`;
+      counter++;
+    }
+
+    // 3.3 Create user account
+    const userRow = await usersRepository.create({
+      username,
+      email: data.email,
+      passwordHash,
+      fullName: data.name,
+      roleId
+    }, client);
+
+    // 3.4 Create doctor profile
+    const doctorRow = await doctorsRepository.create({
+      name: data.name,
+      specialization: data.specialization,
+      phone: data.phone,
+      email: data.email,
+      status: data.status,
+      availabilityNote: data.availabilityNote,
+      experienceYears: data.experienceYears,
+      userId: userRow.id
+    }, client);
+
+    return doctorRow;
+  });
+
+  // 4. Log activity
   await logActivity({
     userId: actor.id,
     actorName: actor.name,
-    action: `Added Dr. ${row.name} to panel`,
+    action: `Added Dr. ${resultDoctor.name} to panel`,
     activityType: 'doctor',
     entityType: 'doctor',
-    entityId: row.id
+    entityId: resultDoctor.id
   });
-  return serializeDoctor(row);
+
+  return serializeDoctor(resultDoctor);
 }
 
 export async function updateDoctor(id, data, actor) {
-  const row = await doctorsRepository.update(id, data);
-  if (!row) throw ApiError.notFound('Doctor not found');
+  const current = await doctorsRepository.findById(id);
+  if (!current) throw ApiError.notFound('Doctor not found');
+
+  // If email is changing, check duplicate in users table
+  if (data.email && data.email !== current.email) {
+    const existingUser = await usersRepository.findByUsernameOrEmail(data.email);
+    if (existingUser && existingUser.id !== current.user_id) {
+      throw ApiError.badRequest('Email is already registered');
+    }
+  }
+
+  const row = await withTransaction(async (client) => {
+    if (current.user_id) {
+      // Sync user profile
+      await usersRepository.updateProfile(current.user_id, {
+        fullName: data.name,
+        email: data.email
+      }, client);
+
+      // Sync active status
+      if (data.status) {
+        await usersRepository.updateActiveStatus(current.user_id, data.status === 'Active', client);
+      }
+
+      // Sync password if provided and not empty
+      if (data.password && data.password.trim() !== '') {
+        const passwordHash = await bcrypt.hash(data.password, env.BCRYPT_SALT_ROUNDS);
+        await usersRepository.updatePasswordHash(current.user_id, passwordHash, client);
+      }
+    }
+
+    return await doctorsRepository.update(id, data, client);
+  });
+
   await logActivity({
     userId: actor.id,
     actorName: actor.name,
@@ -39,6 +125,7 @@ export async function updateDoctor(id, data, actor) {
     entityType: 'doctor',
     entityId: row.id
   });
+
   return serializeDoctor(row);
 }
 
@@ -47,7 +134,14 @@ export async function toggleDoctorStatus(id, actor) {
   if (!current) throw ApiError.notFound('Doctor not found');
 
   const nextStatus = current.status === 'Active' ? 'Inactive' : 'Active';
-  const row = await doctorsRepository.setStatus(id, nextStatus);
+
+  const row = await withTransaction(async (client) => {
+    if (current.user_id) {
+      await usersRepository.updateActiveStatus(current.user_id, nextStatus === 'Active', client);
+    }
+    return await doctorsRepository.setStatus(id, nextStatus, client);
+  });
+
   await logActivity({
     userId: actor.id,
     actorName: actor.name,
@@ -56,12 +150,21 @@ export async function toggleDoctorStatus(id, actor) {
     entityType: 'doctor',
     entityId: row.id
   });
+
   return serializeDoctor(row);
 }
 
 export async function deleteDoctor(id, actor) {
-  const row = await doctorsRepository.softDelete(id);
-  if (!row) throw ApiError.notFound('Doctor not found');
+  const current = await doctorsRepository.findById(id);
+  if (!current) throw ApiError.notFound('Doctor not found');
+
+  const row = await withTransaction(async (client) => {
+    if (current.user_id) {
+      await usersRepository.updateActiveStatus(current.user_id, false, client);
+    }
+    return await doctorsRepository.softDelete(id, client);
+  });
+
   await logActivity({
     userId: actor.id,
     actorName: actor.name,

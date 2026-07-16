@@ -673,6 +673,7 @@ const HospitalContext = createContext(null);
 const adaptPatient = (row) => ({
   id: row.code,
   dbId: row.id,
+  code: row.code,
   name: row.name,
   age: row.age,
   gender: row.gender,
@@ -680,6 +681,7 @@ const adaptPatient = (row) => ({
   address: row.address,
   bloodGroup: row.bloodGroup,
   disease: row.diagnosis,
+  diagnosis: row.diagnosis,
 
   lastVisit: row.lastVisitDate
     ? formatDisplayDate(row.lastVisitDate)
@@ -691,6 +693,7 @@ const adaptPatient = (row) => ({
 const adaptDoctor = (row) => ({
   id: row.code,
   dbId: row.id,
+  code: row.code,
   name: row.name,
   specialization: row.specialization,
   phone: row.phone,
@@ -707,6 +710,7 @@ const adaptDoctor = (row) => ({
 const adaptReceptionist = (row) => ({
   id: row.code,
   dbId: row.id,
+  code: row.code,
   name: row.name,
   phone: row.phone,
   email: row.email,
@@ -722,6 +726,29 @@ const adaptInvestigation = (row) => ({
   price: row.price
 });
 
+const convertTo24Hour = (timeStr) => {
+  if (!timeStr) return '';
+  if (!timeStr.includes(' ')) return timeStr;
+  const [time, modifier] = timeStr.split(' ');
+  let [hours, minutes] = time.split(':');
+  if (modifier === 'PM' && hours !== '12') {
+    hours = parseInt(hours, 10) + 12;
+  } else if (modifier === 'AM' && hours === '12') {
+    hours = '00';
+  }
+  return `${String(hours).padStart(2, '0')}:${minutes}`;
+};
+
+const convertTo12Hour = (time24) => {
+  if (!time24) return '';
+  const [hoursStr, minutes] = time24.split(':');
+  let hours = parseInt(hoursStr, 10);
+  const modifier = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  return `${String(hours).padStart(2, '0')}:${minutes} ${modifier}`;
+};
+
 const adaptAppointment = (row) => ({
   id: row.code,
   dbId: row.id,
@@ -735,7 +762,7 @@ const adaptAppointment = (row) => ({
   date: row.date,
 
   time: row.time
-    ? row.time.slice(0, 5)
+    ? convertTo12Hour(row.time.slice(0, 5))
     : '',
 
   type: row.type,
@@ -764,7 +791,12 @@ const adaptBill = (row) => ({
   patientName: row.patient?.name,
 
   date: row.billDate,
-  billType: row.billType,
+  billType:
+    row.billType === 'OPD'
+      ? 'Consultation'
+      : row.billType === 'Lab'
+      ? 'Investigations'
+      : row.billType,
 
   doctorName: row.doctor?.name || '',
 
@@ -790,7 +822,7 @@ const adaptActivity = (row) => ({
   user: row.actorName,
   action: row.action,
   time: timeAgo(row.createdAt),
-  type: row.type
+  type: row.activityType || row.type
 });
 
 const LIST_ALL = {
@@ -819,6 +851,7 @@ export const HospitalProvider = ({ children }) => {
   const [bills, setBills] = useState([]);
   const [activities, setActivities] = useState([]);
   const [hospitalSettings, setHospitalSettings] = useState(null);
+  const [dashboardSummary, setDashboardSummary] = useState(null);
 
   /* --------------------------------------------------------------------------
      FRONTEND-ONLY CLINICAL STATE
@@ -898,6 +931,15 @@ export const HospitalProvider = ({ children }) => {
      ACTIVITIES
   ========================================================================== */
 
+  const fetchDashboardSummary = useCallback(async () => {
+    try {
+      const response = await apiClient.get('/dashboard/summary');
+      setDashboardSummary(response.data.data);
+    } catch (error) {
+      console.error('Failed to load dashboard summary', error);
+    }
+  }, []);
+
   const refreshActivities = useCallback(async () => {
     try {
       const response = await apiClient.get('/activities', {
@@ -909,6 +951,13 @@ export const HospitalProvider = ({ children }) => {
       setActivities(
         response.data.data.map(adaptActivity)
       );
+
+      // Async fetch dashboard summary whenever activities are refreshed
+      apiClient.get('/dashboard/summary').then((res) => {
+        setDashboardSummary(res.data.data);
+      }).catch((err) => {
+        console.error('Failed to update dashboard summary', err);
+      });
     } catch (error) {
       console.error(
         'Failed to load activity feed',
@@ -981,14 +1030,17 @@ export const HospitalProvider = ({ children }) => {
         hospitalSettingsResponse.data.data
       );
 
-      await refreshActivities();
+      await Promise.all([
+        refreshActivities(),
+        fetchDashboardSummary()
+      ]);
     } catch (error) {
       reportError(
         error,
         'Failed to load hospital data. Please refresh.'
       );
     }
-  }, [refreshActivities, reportError]);
+  }, [refreshActivities, fetchDashboardSummary, reportError]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -1003,6 +1055,7 @@ export const HospitalProvider = ({ children }) => {
       setBills([]);
       setActivities([]);
       setHospitalSettings(null);
+      setDashboardSummary(null);
     }
   }, [isAuthenticated, fetchAll]);
 
@@ -1019,7 +1072,7 @@ export const HospitalProvider = ({ children }) => {
         phone: patient.phone,
         bloodGroup: patient.bloodGroup,
         address: patient.address,
-        diagnosis: patient.disease,
+        diagnosis: patient.diagnosis || patient.disease,
         lastVisitDate: new Date()
           .toISOString()
           .slice(0, 10)
@@ -1073,7 +1126,7 @@ export const HospitalProvider = ({ children }) => {
           phone: updatedPatient.phone,
           bloodGroup: updatedPatient.bloodGroup,
           address: updatedPatient.address,
-          diagnosis: updatedPatient.disease
+          diagnosis: updatedPatient.diagnosis || updatedPatient.disease
         }
       );
 
@@ -1354,7 +1407,9 @@ const addDoctor = async (doctor) => {
         doctor.availability?.trim() || undefined,
 
       experienceYears:
-        parseExperienceYears(doctor.experience)
+        parseExperienceYears(doctor.experience),
+
+      password: doctor.password
     });
 
 
@@ -1449,7 +1504,8 @@ const editDoctor = async (
         experienceYears:
           parseExperienceYears(
             updatedDoctor.experience
-          )
+          ),
+        password: updatedDoctor.password
       }
     );
 
@@ -1649,7 +1705,8 @@ const toggleDoctorStatus = async (code) => {
           email: receptionist.email,
           shift: receptionist.shift,
           status:
-            receptionist.status || 'Active'
+            receptionist.status || 'Active',
+          password: receptionist.password
         }
       );
 
@@ -1700,7 +1757,8 @@ const toggleDoctorStatus = async (code) => {
           phone: updatedReceptionist.phone,
           email: updatedReceptionist.email,
           shift: updatedReceptionist.shift,
-          status: updatedReceptionist.status
+          status: updatedReceptionist.status,
+          password: updatedReceptionist.password
         }
       );
 
@@ -1930,7 +1988,7 @@ const toggleDoctorStatus = async (code) => {
           appointmentDate:
             appointment.date,
           appointmentTime:
-            appointment.time,
+            convertTo24Hour(appointment.time),
           type: appointment.type,
           fee: appointment.fee
         }
@@ -1994,7 +2052,7 @@ const toggleDoctorStatus = async (code) => {
           appointmentDate:
             updatedAppointment.date,
           appointmentTime:
-            updatedAppointment.time,
+            convertTo24Hour(updatedAppointment.time),
           type: updatedAppointment.type,
           fee: updatedAppointment.fee
         }
@@ -2787,7 +2845,12 @@ const toggleDoctorStatus = async (code) => {
         {
           patientId: patient.dbId,
           doctorId: doctor?.dbId,
-          billType: bill.billType,
+          billType:
+            bill.billType === 'Consultation'
+              ? 'OPD'
+              : bill.billType === 'Investigations'
+              ? 'Lab'
+              : bill.billType,
           paymentMode: bill.paymentMode,
           paymentStatus: bill.paymentStatus,
           discount: bill.discount,
@@ -2961,6 +3024,8 @@ const toggleDoctorStatus = async (code) => {
     bills,
     activities,
     hospitalSettings,
+    dashboardSummary,
+    fetchDashboardSummary,
 
     visitHistory,
 

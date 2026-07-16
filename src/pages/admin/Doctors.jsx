@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useHospital } from '../../context/HospitalContext';
 import { Table } from '../../components/ui/Table';
 import { Modal } from '../../components/ui/Modal';
-import { Plus, Edit, Trash2, Clock, Award } from 'lucide-react';
+import { Plus, Edit, Trash2, Clock, Award, Eye } from 'lucide-react';
 import ThreeDotMenu from '../../components/common/ThreeDotMenu';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 
@@ -19,6 +19,10 @@ const Doctors = () => {
   const [selectedDoctorId, setSelectedDoctorId] = useState('');
   const [doctorToToggle, setDoctorToToggle] = useState(null);
 
+  // View modal states
+  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [viewDoctor, setViewDoctor] = useState(null);
+
   // Form states
   const [formData, setFormData] = useState({
   name: '',
@@ -31,18 +35,19 @@ const Doctors = () => {
 });
 
   const handleOpenAdd = () => {
-  setFormData({
-    name: '',
-    specialization: '',
-    phone: '',
-    email: '',
-    experience: '',
-    availability: '',
-    status: 'Active'
-  });
+    setFormData({
+      name: '',
+      specialization: '',
+      phone: '',
+      email: '',
+      experience: '',
+      availability: '',
+      status: 'Active',
+      password: ''
+    });
 
-  setIsAddOpen(true);
-};
+    setIsAddOpen(true);
+  };
 
   const handleOpenEdit = (doc) => {
     setSelectedDoctor(doc);
@@ -53,9 +58,15 @@ const Doctors = () => {
       email: doc.email,
       experience: doc.experience,
       availability: doc.availability,
-      status: doc.status
+      status: doc.status,
+      password: ''
     });
     setIsEditOpen(true);
+  };
+
+  const handleOpenView = (doc) => {
+    setViewDoctor(doc);
+    setIsViewOpen(true);
   };
 
    const handleAddSubmit = async (e) => {
@@ -226,6 +237,11 @@ const Doctors = () => {
           <ThreeDotMenu
             options={[
               {
+                label: 'View Details',
+                icon: Eye,
+                onClick: () => handleOpenView(row)
+              },
+              {
                 label: 'Edit Details',
                 icon: Edit,
                 onClick: () => handleOpenEdit(row)
@@ -305,6 +321,20 @@ const Doctors = () => {
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+              Login Password
+            </label>
+            <input
+              type="password"
+              required
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              placeholder="Min 8 characters"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
+            />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -444,6 +474,19 @@ const Doctors = () => {
             </div>
           </div>
 
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+              Modify Login Password (Optional)
+            </label>
+            <input
+              type="password"
+              value={formData.password || ''}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              placeholder="Leave blank to keep existing password"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
+            />
+          </div>
+
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
             <button
               type="button"
@@ -485,6 +528,67 @@ const Doctors = () => {
         confirmText="Delete"
         type="danger"
       />
+
+      {/* Modal: View Doctor Details */}
+      <Modal isOpen={isViewOpen} onClose={() => setIsViewOpen(false)} title="View Doctor Details" size="md">
+        {viewDoctor && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Doctor ID</span>
+                <span className="text-sm font-semibold text-slate-700">{viewDoctor.id || viewDoctor.code}</span>
+              </div>
+              <div>
+                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Status</span>
+                <span className={`inline-block text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                  viewDoctor.status === 'Active'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                    : 'bg-slate-50 text-slate-600 border-slate-200'
+                }`}>{viewDoctor.status}</span>
+              </div>
+              <div>
+                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Doctor Name</span>
+                <span className="text-sm font-semibold text-slate-700">{viewDoctor.name}</span>
+              </div>
+              <div>
+                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Specialization</span>
+                <span className="text-sm font-semibold text-slate-700">{viewDoctor.specialization}</span>
+              </div>
+              <div>
+                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Email Address</span>
+                <span className="text-sm font-semibold text-slate-700">{viewDoctor.email}</span>
+              </div>
+              <div>
+                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Phone Number</span>
+                <span className="text-sm font-semibold text-slate-700">{viewDoctor.phone}</span>
+              </div>
+              <div>
+                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Experience Years</span>
+                <span className="text-sm font-semibold text-slate-700">{viewDoctor.experience}</span>
+              </div>
+              <div>
+                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Shift Timing</span>
+                <span className="text-sm font-semibold text-slate-700">{viewDoctor.availability}</span>
+              </div>
+            </div>
+            
+            <div className="border-t border-slate-100 pt-4">
+              <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Password</span>
+              <span className="text-sm font-semibold text-slate-500 italic">Hidden for security</span>
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsViewOpen(false)}
+                className="px-6 py-2.5 rounded-xl bg-hospital-500 text-xs font-bold text-white shadow-premium hover:bg-hospital-600 cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

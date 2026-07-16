@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useHospital } from '../../context/HospitalContext';
 import { Table } from '../../components/ui/Table';
 import { Modal } from '../../components/ui/Modal';
-import { Plus, Edit, Trash2, Clock } from 'lucide-react';
+import { Plus, Edit, Trash2, Clock, Eye } from 'lucide-react';
 import ThreeDotMenu from '../../components/common/ThreeDotMenu';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 
@@ -25,6 +25,10 @@ const Receptionists = () => {
   const [selectedRecId, setSelectedRecId] = useState('');
   const [recToToggle, setRecToToggle] = useState(null);
 
+  // View modal states
+  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [viewRec, setViewRec] = useState(null);
+
   // Form states
   const [formData, setFormData] = useState({
     name: '',
@@ -40,7 +44,8 @@ const Receptionists = () => {
       phone: '',
       email: '',
       shift: 'Morning (8 AM - 4 PM)',
-      status: 'Active'
+      status: 'Active',
+      password: ''
     });
     setIsAddOpen(true);
   };
@@ -52,9 +57,15 @@ const Receptionists = () => {
       phone: rec.phone,
       email: rec.email,
       shift: rec.shift,
-      status: rec.status
+      status: rec.status,
+      password: ''
     });
     setIsEditOpen(true);
+  };
+
+  const handleOpenView = (rec) => {
+    setViewRec(rec);
+    setIsViewOpen(true);
   };
 
  const handleAddSubmit = async (e) => {
@@ -218,6 +229,11 @@ const handleConfirmDelete = async () => {
           <ThreeDotMenu
             options={[
               {
+                label: 'View Details',
+                icon: Eye,
+                onClick: () => handleOpenView(row)
+              },
+              {
                 label: 'Edit Details',
                 icon: Edit,
                 onClick: () => handleOpenEdit(row)
@@ -293,6 +309,20 @@ const handleConfirmDelete = async () => {
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+              Login Password
+            </label>
+            <input
+              type="password"
+              required
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              placeholder="Min 8 characters"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
+            />
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
@@ -372,6 +402,19 @@ const handleConfirmDelete = async () => {
             </div>
           </div>
 
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+              Modify Login Password (Optional)
+            </label>
+            <input
+              type="password"
+              value={formData.password || ''}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              placeholder="Leave blank to keep existing password"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
+            />
+          </div>
+
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
             <button
               type="button"
@@ -413,6 +456,59 @@ const handleConfirmDelete = async () => {
         confirmText="Remove Access"
         type="danger"
       />
+
+      {/* Modal: View Receptionist Details */}
+      <Modal isOpen={isViewOpen} onClose={() => setIsViewOpen(false)} title="View Receptionist Details" size="md">
+        {viewRec && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Receptionist ID</span>
+                <span className="text-sm font-semibold text-slate-700">{viewRec.id || viewRec.code}</span>
+              </div>
+              <div>
+                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Status</span>
+                <span className={`inline-block text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                  viewRec.status === 'Active'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                    : 'bg-slate-50 text-slate-600 border-slate-200'
+                }`}>{viewRec.status}</span>
+              </div>
+              <div>
+                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Name</span>
+                <span className="text-sm font-semibold text-slate-700">{viewRec.name}</span>
+              </div>
+              <div>
+                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Email Address</span>
+                <span className="text-sm font-semibold text-slate-700">{viewRec.email}</span>
+              </div>
+              <div>
+                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Phone Number</span>
+                <span className="text-sm font-semibold text-slate-700">{viewRec.phone}</span>
+              </div>
+              <div>
+                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Shift Duty</span>
+                <span className="text-sm font-semibold text-slate-700">{viewRec.shift}</span>
+              </div>
+            </div>
+            
+            <div className="border-t border-slate-100 pt-4">
+              <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Password</span>
+              <span className="text-sm font-semibold text-slate-500 italic">Hidden for security</span>
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsViewOpen(false)}
+                className="px-6 py-2.5 rounded-xl bg-hospital-500 text-xs font-bold text-white shadow-premium hover:bg-hospital-600 cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };

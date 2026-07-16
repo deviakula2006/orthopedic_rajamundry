@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useHospital } from '../../context/HospitalContext';
 import {
@@ -22,8 +22,7 @@ import {
   Tooltip as ChartTooltip,
   PieChart,
   Pie,
-  Cell,
-  Legend
+  Cell
 } from 'recharts';
 import orthoIll from '../../assets/ortho_ill.png';
 
@@ -42,8 +41,8 @@ const Dashboard = () => {
     activities,
     doctors,
     receptionists,
-    investigations,
-    addPatient
+    addPatient,
+    dashboardSummary
   } = useHospital();
   
   const navigate = useNavigate();
@@ -53,95 +52,87 @@ const Dashboard = () => {
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
   const [investigationModalOpen, setInvestigationModalOpen] = useState(false);
 
-  // Compute Stats
-  const totalPatients = patients.length + 1238; // base + dynamic
-  const totalAppointments = appointments.length + 323;
-
-  // Today's Date
-  const todayStr = '2026-06-21';
-
-  // Today's Revenue (bills dated today)
-  const todayBills = bills.filter((b) => b.date === todayStr);
-  const todayRevenueVal = todayBills.reduce((acc, b) => acc + b.total, 0);
-  const formattedTodayRevenue = new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0
-  }).format(todayRevenueVal || 3313); // fallback matching screenshot
-
-  // Today's Investigations Ordered (linked to visitHistory/appointments)
-  // Let's count mock investigations or active investigations today
-  const todayInvestigationsCount = 12 + bills.filter(b => b.billType === 'Investigations' && b.date === todayStr).length;
-
-  const stats = [
-    {
-      title: 'Total Patients',
-      value: totalPatients,
-      change: '+12%',
-      isPositive: true,
-      timeframe: 'from last month',
-      icon: Users,
-      color: 'from-blue-500 to-indigo-500',
-      bgLight: 'bg-blue-50'
-    },
-    {
-      title: 'Appointments',
-      value: totalAppointments,
-      change: '+8%',
-      isPositive: true,
-      timeframe: 'from last week',
-      icon: Calendar,
-      color: 'from-hospital-500 to-cyanic-400',
-      bgLight: 'bg-sky-50'
-    },
-    {
-      title: "Today's Revenue",
-      value: formattedTodayRevenue,
-      change: '+15%',
-      isPositive: true,
-      timeframe: 'from yesterday',
-      icon: IndianRupee,
-      color: 'from-emerald-500 to-teal-500',
-      bgLight: 'bg-emerald-50'
-    },
-    {
-      title: "Today's Investigations",
-      value: todayInvestigationsCount,
-      change: '+24%',
-      isPositive: true,
-      timeframe: 'tests executed',
-      icon: Activity,
-      color: 'from-purple-500 to-indigo-500',
-      bgLight: 'bg-purple-50'
-    }
-  ];
-
-  // Directory counts
-  const activeDoctorsCount = doctors.filter((d) => d.status === 'Active').length;
-  const activeReceptionistsCount = receptionists.filter((r) => r.status === 'Active').length;
-  const totalBedsCount = beds.length;
-  const availableBedsCount = beds.filter((b) => b.status === 'Available').length;
-
-  // Chart Data
-  const trendData = [
-    { name: 'Mon', appointments: 28, revenue: 38000 },
-    { name: 'Tue', appointments: 35, revenue: 42000 },
-    { name: 'Wed', appointments: 30, revenue: 31000 },
-    { name: 'Thu', appointments: 48, revenue: 58000 },
-    { name: 'Fri', appointments: 42, revenue: 49000 },
-    { name: 'Sat', appointments: 25, revenue: 28000 },
-    { name: 'Sun', appointments: 15, revenue: 12000 }
-  ];
-
-  const pieData = [
-    { name: 'OPD Consultations', value: 45, color: '#0ea5e9' },
-    { name: 'Lab Investigations', value: 35, color: '#8b5cf6' },
-    { name: 'IPD Bed Charges', value: 20, color: '#10b981' }
-  ];
-
   const handleSavePatient = (patientData) => {
     addPatient(patientData);
   };
+
+  const COLORS = ['#0ea5e9', '#8b5cf6', '#10b981'];
+
+  const stats = useMemo(() => {
+    if (!dashboardSummary) return [];
+    return [
+      {
+        title: 'Total Patients',
+        value: dashboardSummary.totalPatients,
+        change: '+10%',
+        isPositive: true,
+        timeframe: 'from last month',
+        icon: Users,
+        color: 'from-blue-500 to-indigo-500',
+        bgLight: 'bg-blue-50'
+      },
+      {
+        title: "Today's Appointments",
+        value: dashboardSummary.appointmentsToday,
+        change: '+5%',
+        isPositive: true,
+        timeframe: 'from last week',
+        icon: Calendar,
+        color: 'from-hospital-500 to-cyanic-400',
+        bgLight: 'bg-sky-50'
+      },
+      {
+        title: "Today's Revenue",
+        value: new Intl.NumberFormat('en-IN', {
+          style: 'currency',
+          currency: 'INR',
+          maximumFractionDigits: 0
+        }).format(dashboardSummary.revenueToday),
+        change: '+12%',
+        isPositive: true,
+        timeframe: 'from yesterday',
+        icon: IndianRupee,
+        color: 'from-emerald-500 to-teal-500',
+        bgLight: 'bg-emerald-50'
+      },
+      {
+        title: "Today's Investigations",
+        value: dashboardSummary.todayInvestigations,
+        change: '+8%',
+        isPositive: true,
+        timeframe: 'tests executed',
+        icon: Activity,
+        color: 'from-purple-500 to-indigo-500',
+        bgLight: 'bg-purple-50'
+      }
+    ];
+  }, [dashboardSummary]);
+
+  // Directory counts
+  const activeDoctorsCount = dashboardSummary?.activeDoctors ?? 0;
+  const activeReceptionistsCount = dashboardSummary?.activeReceptionists ?? 0;
+  const totalBedsCount = dashboardSummary?.beds?.total ?? 0;
+  const availableBedsCount = dashboardSummary?.beds?.available ?? 0;
+
+  // Chart Data: dynamic trend based on last 7 days of actual appointments and revenue
+  const trendData = dashboardSummary?.appointmentsTrend ?? [];
+
+  // Donut Chart: dynamic revenue breakdown from bills
+  const pieData = useMemo(() => {
+    if (!dashboardSummary) return [];
+    return dashboardSummary.revenueOverview.map((item, index) => ({
+      ...item,
+      color: COLORS[index % COLORS.length]
+    }));
+  }, [dashboardSummary]);
+
+  if (!dashboardSummary) {
+    return (
+      <div className="flex h-[80vh] items-center justify-center">
+        <p className="text-sm font-semibold text-slate-400">Loading hospital dashboard analytics...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -170,8 +161,6 @@ const Dashboard = () => {
         <div className="absolute top-0 right-0 h-full w-1/3 bg-white/5 skew-x-12 translate-x-10 pointer-events-none"></div>
       </motion.div>
 
-      {/* Quick Actions Panel */}
-      
       {/* KPI Cards Grid */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat, idx) => {
@@ -323,7 +312,7 @@ const Dashboard = () => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-700 leading-normal truncate">
-                      {act.action}
+                       {act.action}
                     </p>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                       {act.user} &bull; {act.time}

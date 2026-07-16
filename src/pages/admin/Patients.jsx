@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useHospital } from '../../context/HospitalContext';
+import { useAuth } from '../../context/AuthContext';
 import { Table } from '../../components/ui/Table';
 import { Modal } from '../../components/ui/Modal';
 import { Plus, Eye, Edit, Trash2, Calendar, UserPlus, Search, UserCheck } from 'lucide-react';
@@ -12,6 +13,7 @@ import AppointmentModal from '../../components/modals/AppointmentModal';
 
 const Patients = () => {
   const { patients, addPatient, editPatient, deletePatient } = useHospital();
+  const { user } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [patientModalOpen, setPatientModalOpen] = useState(false);
@@ -200,7 +202,7 @@ const handleConfirmDelete = async () => {
                     setAppointmentModalOpen(true);
                   }
                 },
-                {
+                ...(user?.role === 'Admin' ? [{
                   label: 'Delete Record',
                   icon: Trash2,
                   destructive: true,
@@ -208,7 +210,7 @@ const handleConfirmDelete = async () => {
                     setSelectedPatientId(row.id);
                     setDeleteConfirmOpen(true);
                   }
-                }
+                }] : [])
               ]}
             />
           )}

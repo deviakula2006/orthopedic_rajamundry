@@ -1,91 +1,175 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useHospital } from '../../context/HospitalContext';
-import {
-  FileText,
-  TrendingUp,
-  Download,
-  Calendar,
-  Users,
-  Receipt
-} from 'lucide-react';
+import apiClient from '../../services/api';
+import { Download, Calendar, Users, Receipt, Activity } from 'lucide-react';
 import {
   ResponsiveContainer,
   AreaChart,
   Area,
   XAxis,
-  YAxis,
   Tooltip as ChartTooltip,
   BarChart,
   Bar
 } from 'recharts';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const ReceptionistReports = () => {
-  const { patients, appointments, bills } = useHospital();
-  const [activeTab, setActiveTab] = useState('registrations');
-  const [dateFrom, setDateFrom] = useState('2026-06-21');
-  const [dateTo, setDateTo] = useState('2026-06-21');
+  const { hospitalSettings, showToast } = useHospital();
+  
+  // Default range from start of year to today
+  const [dateFrom, setDateFrom] = useState('2026-01-01');
+  const [dateTo, setDateTo] = useState(new Date().toISOString().slice(0, 10));
+  const [activeTab, setActiveTab] = useState('revenue');
 
-  // Compute reports datasets
-  const todayStr = '2026-06-21';
+  const [reportData, setReportData] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // 1. Registrations Report
-  const registeredPatients = patients.filter((p) => {
-    if (!p.registrationDate) return false;
-    return p.registrationDate >= dateFrom && p.registrationDate <= dateTo;
-  });
+  // Fetch report data on tab or date range change
+  useEffect(() => {
+    let active = true;
+    const fetchReport = async () => {
+      setIsLoading(true);
+      try {
+        const response = await apiClient.get(`/reports/${activeTab}`, {
+          params: { dateFrom, dateTo }
+        });
+        if (active) {
+          setReportData(response.data.data);
+        }
+      } catch (err) {
+        console.error('Failed to load report:', err);
+        showToast(err.response?.data?.error?.message || 'Failed to load report data', 'error');
+      } finally {
+        if (active) {
+          setIsLoading(false);
+        }
+      }
+    };
 
-  // 2. Appointments Report
-  const appointmentRecords = appointments.filter((a) => {
-    return a.date >= dateFrom && a.date <= dateTo;
-  });
+    fetchReport();
+    return () => {
+      active = false;
+    };
+  }, [activeTab, dateFrom, dateTo, showToast]);
 
-  // 3. Billing Collections Report
-  const billingRecords = bills.filter((b) => {
-    return b.date >= dateFrom && b.date <= dateTo;
-  });
-  const totalCollectionsVal = billingRecords
-    .filter((b) => b.paymentStatus === 'Paid')
-    .reduce((acc, b) => acc + b.total, 0);
+  const items = reportData?.items || [];
+  const trend = reportData?.trend || [];
+  const totalVal = activeTab === 'revenue' 
+    ? (reportData?.totalCollected || 0) 
+    : activeTab === 'patients' 
+      ? (reportData?.totalRegistrations || 0)
+      : (reportData?.totalTestsOrdered || 0);
 
-  // Trend Data for Charts
-  const regTrendData = [
-    { day: 'Mon', count: 4 },
-    { day: 'Tue', count: 7 },
-    { day: 'Wed', count: 5 },
-    { day: 'Thu', count: 12 },
-    { day: 'Fri', count: 8 },
-    { day: 'Sat', count: 4 },
-    { day: 'Sun', count: 6 }
-  ];
+  const handleExportPdf = () => {
+    try {
+      const doc = new jsPDF();
+      const hospitalName = hospitalSettings?.name || 'Rajahmundry Orthopedic Hospital';
 
-  const aptTrendData = [
-    { day: 'Mon', count: 15 },
-    { day: 'Tue', count: 22 },
-    { day: 'Wed', count: 18 },
-    { day: 'Thu', count: 28 },
-    { day: 'Fri', count: 20 },
-    { day: 'Sat', count: 10 },
-    { day: 'Sun', count: 5 }
-  ];
+      doc.setFontSize(16);
+      doc.setFont(undefined, 'bold');
+      doc.text(hospitalName, 14, 18);
+      doc.setFontSize(11);
+      doc.setFont(undefined, 'normal');
+      
+      let reportTitle = '';
+      let head = [];
+      let body = [];
+      let fileSuffix = '';
 
-  const collectionsTrendData = [
-    { day: 'Mon', amount: 15000 },
-    { day: 'Tue', amount: 22000 },
-    { day: 'Wed', amount: 14000 },
-    { day: 'Thu', amount: 35000 },
-    { day: 'Fri', amount: 28000 },
-    { day: 'Sat', amount: 12000 },
-    { day: 'Sun', amount: 8000 }
-  ];
+      if (activeTab === 'revenue') {
+        reportTitle = 'Revenue Report';
+        head = [['Invoice ID', 'Patient Name', 'Consultant', 'Date', 'Grand Total']];
+        body = items.map((b) => [b.invoiceNo, b.patientName, b.doctorName, b.date, `Rs.${b.total}`]);
+        fileSuffix = 'revenue';
+      } else if (activeTab === 'patients') {
+        reportTitle = 'Patient Registrations';
+        head = [['Patient ID', 'Full Name', 'Age/Gender', 'Phone', 'Registered Date']];
+        body = items.map((p) => [p.id, p.name, `${p.age} / ${p.gender}`, p.phone, p.lastVisit]);
+        fileSuffix = 'patients';
+      } else {
+        reportTitle = 'Lab Investigations';
+        head = [['Test Code', 'Test Name', 'Patient Info', 'Ordered Date', 'Price']];
+        body = items.map((i) => [i.id, i.testName, i.patientName, i.date, `Rs.${i.price}`]);
+        fileSuffix = 'investigations';
+      }
+
+      doc.text(reportTitle, 14, 26);
+      doc.setFontSize(9);
+      doc.setTextColor(100);
+      doc.text(`Range: ${dateFrom} to ${dateTo}  |  Generated: ${new Date().toISOString().slice(0, 10)}`, 14, 32);
+
+      autoTable(doc, {
+        head,
+        body,
+        startY: 38,
+        headStyles: { fillColor: [14, 165, 233] },
+        styles: { fontSize: 9 }
+      });
+
+      doc.save(`roh-${fileSuffix}-report-${dateFrom}-to-${dateTo}.pdf`);
+      showToast('PDF export generated successfully!');
+    } catch (error) {
+      console.error('PDF generation failed:', error);
+      showToast('Failed to generate PDF export.', 'error');
+    }
+  };
+
+  const handleExportCSV = () => {
+    try {
+      let csvContent = "data:text/csv;charset=utf-8,";
+      let filename = "";
+      
+      if (activeTab === 'revenue') {
+        csvContent += "Invoice ID,Patient Name,Consultant,Date,Sub Total,Tax,Discount,Grand Total\n";
+        items.forEach(b => {
+          csvContent += `"${b.invoiceNo}","${b.patientName}","${b.doctorName}","${b.date}",${b.subTotal},${b.tax},${b.discount},${b.total}\n`;
+        });
+        filename = `revenue-report-${dateFrom}-to-${dateTo}.csv`;
+      } else if (activeTab === 'patients') {
+        csvContent += "Patient ID,Full Name,Age,Gender,Blood Group,Phone,Registered Date\n";
+        items.forEach(p => {
+          csvContent += `"${p.id}","${p.name}",${p.age},"${p.gender}","${p.bloodGroup || 'O+'}","${p.phone}","${p.lastVisit}"\n`;
+        });
+        filename = `patients-report-${dateFrom}-to-${dateTo}.csv`;
+      } else {
+        csvContent += "Test Code,Test Name,Patient Name,Ordered Date,Price\n";
+        items.forEach(i => {
+          csvContent += `"${i.id}","${i.testName}","${i.patientName}","${i.date}",${i.price}\n`;
+        });
+        filename = `investigations-report-${dateFrom}-to-${dateTo}.csv`;
+      }
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('CSV export generated successfully!');
+    } catch (error) {
+      console.error('CSV generation failed:', error);
+      showToast('Failed to generate CSV export.', 'error');
+    }
+  };
 
   const handleExport = (format) => {
-    alert(`Exporting report as ${format.toUpperCase()}... (Future integration module)`);
+    if (format === 'pdf') {
+      handleExportPdf();
+    } else {
+      handleExportCSV();
+    }
   };
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
+        <div>
+          <h1 className="text-xl font-bold text-slate-800 tracking-tight">Reports & Analytics</h1>
+          <p className="text-xs text-slate-400 font-semibold">Generate printable PDF ledger lists, patient registrations, and diagnostic statistics</p>
+        </div>
         
         <div className="flex flex-wrap gap-2">
           <button
@@ -94,15 +178,7 @@ const ReceptionistReports = () => {
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 py-1.5 px-3 text-xs font-bold text-slate-600 transition-all cursor-pointer"
           >
             <Download className="h-4 w-4" />
-            <span>PDF Ledger</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleExport('excel')}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 py-1.5 px-3 text-xs font-bold text-slate-600 transition-all cursor-pointer"
-          >
-            <Download className="h-4 w-4" />
-            <span>Excel Sheet</span>
+            <span>Export PDF Ledger</span>
           </button>
           <button
             type="button"
@@ -110,49 +186,61 @@ const ReceptionistReports = () => {
             className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 py-1.5 px-3 text-xs font-bold text-slate-600 transition-all cursor-pointer"
           >
             <Download className="h-4 w-4" />
-            <span>CSV File</span>
+            <span>Export CSV</span>
           </button>
         </div>
       </div>
 
       {/* Date Filter Panel */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-premium flex flex-wrap items-center gap-4 text-xs font-semibold text-slate-600">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-premium flex flex-wrap items-center gap-4 text-xs font-bold text-slate-400 uppercase tracking-wider">
         <div className="flex items-center gap-2">
-          <span>Date From:</span>
+          <Calendar className="h-4 w-4 text-slate-400" />
+          <span className="text-slate-500">Date From:</span>
           <input
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-2.5 text-xs text-slate-700 focus:outline-none"
+            className="rounded-xl border border-slate-200 bg-slate-50 py-1.5 px-2.5 text-xs text-slate-700 focus:outline-none"
           />
         </div>
         <div className="flex items-center gap-2">
-          <span>Date To:</span>
+          <Calendar className="h-4 w-4 text-slate-400" />
+          <span className="text-slate-500">Date To:</span>
           <input
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-slate-50 py-1.5 px-2.5 text-xs text-slate-700 focus:outline-none"
+            className="rounded-xl border border-slate-200 bg-slate-50 py-1.5 px-2.5 text-xs text-slate-700 focus:outline-none"
           />
         </div>
         <button
           type="button"
           onClick={() => {
-            setDateFrom(todayStr);
-            setDateTo(todayStr);
+            setDateFrom('2026-01-01');
+            setDateTo(new Date().toISOString().slice(0, 10));
           }}
-          className="rounded-lg bg-slate-100 hover:bg-slate-200 py-1.5 px-3 text-xs font-bold text-slate-700 cursor-pointer"
+          className="rounded-xl bg-slate-100 hover:bg-slate-200 py-1.5 px-3 text-xs font-bold text-slate-700 cursor-pointer"
         >
-          Reset to Today
+          Reset Range
         </button>
       </div>
 
       {/* Tabs Menu */}
       <div className="flex border-b border-slate-200">
         <button
-          onClick={() => setActiveTab('registrations')}
+          onClick={() => setActiveTab('revenue')}
           className={`py-3 px-6 text-xs font-bold border-b-2 transition-all cursor-pointer ${
-            activeTab === 'registrations'
+            activeTab === 'revenue'
+              ? 'border-hospital-500 text-hospital-600'
+              : 'border-transparent text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          Revenue Report
+        </button>
+        <button
+          onClick={() => setActiveTab('patients')}
+          className={`py-3 px-6 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+            activeTab === 'patients'
               ? 'border-hospital-500 text-hospital-600'
               : 'border-transparent text-slate-400 hover:text-slate-600'
           }`}
@@ -160,231 +248,223 @@ const ReceptionistReports = () => {
           Patient Registrations
         </button>
         <button
-          onClick={() => setActiveTab('appointments')}
+          onClick={() => setActiveTab('investigations')}
           className={`py-3 px-6 text-xs font-bold border-b-2 transition-all cursor-pointer ${
-            activeTab === 'appointments'
+            activeTab === 'investigations'
               ? 'border-hospital-500 text-hospital-600'
               : 'border-transparent text-slate-400 hover:text-slate-600'
           }`}
         >
-          OPD Appointments
-        </button>
-        <button
-          onClick={() => setActiveTab('collections')}
-          className={`py-3 px-6 text-xs font-bold border-b-2 transition-all cursor-pointer ${
-            activeTab === 'collections'
-              ? 'border-hospital-500 text-hospital-600'
-              : 'border-transparent text-slate-400 hover:text-slate-600'
-          }`}
-        >
-          Billing Collections
+          Lab Investigations
         </button>
       </div>
 
-      {/* Tab Panels */}
-      {activeTab === 'registrations' && (
-        <div className="grid gap-6 md:grid-cols-3">
-          {/* Summary Card */}
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium flex flex-col justify-between h-44">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Registered</span>
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-hospital-500">
-                <Users className="h-5 w-5" />
+      {isLoading ? (
+        <div className="flex items-center justify-center p-12 bg-white border border-slate-200 rounded-2xl h-64">
+          <p className="text-sm font-semibold text-slate-400">Loading report data from database...</p>
+        </div>
+      ) : (
+        /* Tab Panels */
+        <>
+          {activeTab === 'revenue' && (
+            <div className="grid gap-6 md:grid-cols-3">
+              {/* Summary Card */}
+              <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium flex flex-col justify-between h-44">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Revenue Collected</span>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                    <Receipt className="h-5 w-5" />
+                  </div>
+                </div>
+                <div>
+                  <span className="text-2xl font-extrabold text-slate-800">
+                    {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(totalVal)}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-semibold block mt-1">For selected date range</span>
+                </div>
+              </div>
+
+              {/* Trend Chart */}
+              <div className="md:col-span-2 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium h-44 flex flex-col justify-between">
+                <span className="text-xs font-bold text-slate-500 block mb-2">Revenue Growth Trend</span>
+                <div className="h-28 w-full text-xs">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={trend}>
+                      <XAxis dataKey="day" stroke="#cbd5e1" />
+                      <ChartTooltip />
+                      <Area type="monotone" dataKey="revenue" stroke="#10b981" fill="#ecfdf5" strokeWidth={2.5} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Data Table */}
+              <div className="md:col-span-3 rounded-2xl border border-slate-200/80 bg-white overflow-hidden shadow-premium">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b bg-slate-50 font-bold text-slate-400 uppercase">
+                      <th className="px-6 py-3">Invoice No</th>
+                      <th className="px-6 py-3">Patient Name</th>
+                      <th className="px-6 py-3">Treating Consultant</th>
+                      <th className="px-6 py-3 text-right">Tax (5% GST)</th>
+                      <th className="px-6 py-3 text-right">Discount (₹)</th>
+                      <th className="px-6 py-3 text-right">Collection Total (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                    {items.map((b) => (
+                      <tr key={b.invoiceNo}>
+                        <td className="px-6 py-3 text-hospital-600 font-bold">{b.invoiceNo}</td>
+                        <td className="px-6 py-3">{b.patientName}</td>
+                        <td className="px-6 py-3 text-slate-500">{b.doctorName}</td>
+                        <td className="px-6 py-3 text-right">₹{b.tax}</td>
+                        <td className="px-6 py-3 text-right text-red-500">-₹{b.discount}</td>
+                        <td className="px-6 py-3 text-right font-extrabold text-slate-800">₹{b.total}</td>
+                      </tr>
+                    ))}
+                    {items.length === 0 && (
+                      <tr>
+                        <td colSpan="6" className="px-6 py-8 text-center text-slate-400">
+                          No collections recorded in this range.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
-            <div>
-              <span className="text-3xl font-extrabold text-slate-800">{registeredPatients.length} Patients</span>
-              <span className="text-[10px] text-slate-400 font-semibold block mt-1">For selected date range</span>
-            </div>
-          </div>
+          )}
 
-          {/* Trend Chart */}
-          <div className="md:col-span-2 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium h-44 flex flex-col justify-between">
-            <span className="text-xs font-bold text-slate-500 block mb-2">Registration Weekly Trend</span>
-            <div className="h-28 w-full text-xs">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={regTrendData}>
-                  <XAxis dataKey="day" stroke="#cbd5e1" />
-                  <ChartTooltip />
-                  <Area type="monotone" dataKey="count" stroke="#0ea5e9" fill="#e0f2fe" strokeWidth={2.5} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          {activeTab === 'patients' && (
+            <div className="grid gap-6 md:grid-cols-3">
+              {/* Summary Card */}
+              <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium flex flex-col justify-between h-44">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Registrations</span>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-hospital-500">
+                    <Users className="h-5 w-5" />
+                  </div>
+                </div>
+                <div>
+                  <span className="text-3xl font-extrabold text-slate-800">{totalVal} Patients</span>
+                  <span className="text-[10px] text-slate-400 font-semibold block mt-1">For selected date range</span>
+                </div>
+              </div>
 
-          {/* Data Table */}
-          <div className="md:col-span-3 rounded-2xl border border-slate-200/80 bg-white overflow-hidden shadow-premium">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b bg-slate-50 font-bold text-slate-400 uppercase">
-                  <th className="px-6 py-3">Patient ID</th>
-                  <th className="px-6 py-3">Name</th>
-                  <th className="px-6 py-3">Phone</th>
-                  <th className="px-6 py-3">Gender</th>
-                  <th className="px-6 py-3">Registered Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                {registeredPatients.map((p) => (
-                  <tr key={p.id}>
-                    <td className="px-6 py-3 text-hospital-600 font-bold">{p.id}</td>
-                    <td className="px-6 py-3">{p.name}</td>
-                    <td className="px-6 py-3 text-slate-400">{p.phone}</td>
-                    <td className="px-6 py-3">{p.gender}</td>
-                    <td className="px-6 py-3 text-slate-400">{p.registrationDate || todayStr}</td>
-                  </tr>
-                ))}
-                {registeredPatients.length === 0 && (
-                  <tr>
-                    <td colSpan="5" className="px-6 py-8 text-center text-slate-400">
-                      No registrations found in this range.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+              {/* Trend Chart */}
+              <div className="md:col-span-2 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium h-44 flex flex-col justify-between">
+                <span className="text-xs font-bold text-slate-500 block mb-2">Registrations Weekly Trend</span>
+                <div className="h-28 w-full text-xs">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={trend}>
+                      <XAxis dataKey="day" stroke="#cbd5e1" />
+                      <ChartTooltip />
+                      <Area type="monotone" dataKey="registrations" stroke="#0ea5e9" fill="#e0f2fe" strokeWidth={2.5} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
 
-      {activeTab === 'appointments' && (
-        <div className="grid gap-6 md:grid-cols-3">
-          {/* Summary Card */}
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium flex flex-col justify-between h-44">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Appointments</span>
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-hospital-500">
-                <Calendar className="h-5 w-5" />
+              {/* Data Table */}
+              <div className="md:col-span-3 rounded-2xl border border-slate-200/80 bg-white overflow-hidden shadow-premium">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b bg-slate-50 font-bold text-slate-400 uppercase">
+                      <th className="px-6 py-3">Patient ID</th>
+                      <th className="px-6 py-3">Full Name</th>
+                      <th className="px-6 py-3">Age / Gender</th>
+                      <th className="px-6 py-3">Diagnosis</th>
+                      <th className="px-6 py-3">Registered Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                    {items.map((p) => (
+                      <tr key={p.id}>
+                        <td className="px-6 py-3 text-hospital-600 font-bold">{p.id}</td>
+                        <td className="px-6 py-3">{p.name}</td>
+                        <td className="px-6 py-3">{p.age} Yrs / {p.gender}</td>
+                        <td className="px-6 py-3 text-slate-500">{p.disease || 'General checkup'}</td>
+                        <td className="px-6 py-3 text-slate-400">{p.lastVisit}</td>
+                      </tr>
+                    ))}
+                    {items.length === 0 && (
+                      <tr>
+                        <td colSpan="5" className="px-6 py-8 text-center text-slate-400">
+                          No registrations found in this range.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
-            <div>
-              <span className="text-3xl font-extrabold text-slate-800">{appointmentRecords.length} Consultations</span>
-              <span className="text-[10px] text-slate-400 font-semibold block mt-1">For selected date range</span>
-            </div>
-          </div>
+          )}
 
-          {/* Trend Chart */}
-          <div className="md:col-span-2 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium h-44 flex flex-col justify-between">
-            <span className="text-xs font-bold text-slate-500 block mb-2">OPD Appointment Trends</span>
-            <div className="h-28 w-full text-xs">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={aptTrendData}>
-                  <XAxis dataKey="day" stroke="#cbd5e1" />
-                  <ChartTooltip />
-                  <Bar dataKey="count" fill="#38bdf8" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          {activeTab === 'investigations' && (
+            <div className="grid gap-6 md:grid-cols-3">
+              {/* Summary Card */}
+              <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium flex flex-col justify-between h-44">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Tests Ordered</span>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
+                    <Activity className="h-5 w-5" />
+                  </div>
+                </div>
+                <div>
+                  <span className="text-3xl font-extrabold text-slate-800">{totalVal} Tests</span>
+                  <span className="text-[10px] text-slate-400 font-semibold block mt-1">For selected date range</span>
+                </div>
+              </div>
 
-          {/* Data Table */}
-          <div className="md:col-span-3 rounded-2xl border border-slate-200/80 bg-white overflow-hidden shadow-premium">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b bg-slate-50 font-bold text-slate-400 uppercase">
-                  <th className="px-6 py-3">Appt ID</th>
-                  <th className="px-6 py-3">Patient Name</th>
-                  <th className="px-6 py-3">Doctor Consultant</th>
-                  <th className="px-6 py-3">Type</th>
-                  <th className="px-6 py-3">Status</th>
-                  <th className="px-6 py-3">Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                {appointmentRecords.map((a) => (
-                  <tr key={a.id}>
-                    <td className="px-6 py-3 text-hospital-600 font-bold">{a.id}</td>
-                    <td className="px-6 py-3">{a.patientName}</td>
-                    <td className="px-6 py-3 text-slate-500">{a.doctorName}</td>
-                    <td className="px-6 py-3">{a.type}</td>
-                    <td className="px-6 py-3">
-                      <span className="rounded bg-slate-50 border px-2 py-0.5 text-[10px] font-extrabold uppercase">
-                        {a.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3 text-slate-400">{a.date}</td>
-                  </tr>
-                ))}
-                {appointmentRecords.length === 0 && (
-                  <tr>
-                    <td colSpan="6" className="px-6 py-8 text-center text-slate-400">
-                      No appointments recorded in this range.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+              {/* Trend Chart */}
+              <div className="md:col-span-2 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium h-44 flex flex-col justify-between">
+                <span className="text-xs font-bold text-slate-500 block mb-2">Investigation Weekly Trends</span>
+                <div className="h-28 w-full text-xs">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={trend}>
+                      <XAxis dataKey="day" stroke="#cbd5e1" />
+                      <ChartTooltip />
+                      <Bar dataKey="tests" fill="#a855f7" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
 
-      {activeTab === 'collections' && (
-        <div className="grid gap-6 md:grid-cols-3">
-          {/* Summary Card */}
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium flex flex-col justify-between h-44">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Gross Collection</span>
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                <Receipt className="h-5 w-5" />
+              {/* Data Table */}
+              <div className="md:col-span-3 rounded-2xl border border-slate-200/80 bg-white overflow-hidden shadow-premium">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b bg-slate-50 font-bold text-slate-400 uppercase">
+                      <th className="px-6 py-3">Test Code</th>
+                      <th className="px-6 py-3">Investigation Name</th>
+                      <th className="px-6 py-3">Category</th>
+                      <th className="px-6 py-3">Patient Name</th>
+                      <th className="px-6 py-3 text-right">Standard Rate (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                    {items.map((i) => (
+                      <tr key={i.id + '-' + i.patientName}>
+                        <td className="px-6 py-3 text-hospital-600 font-bold">{i.id}</td>
+                        <td className="px-6 py-3">{i.testName}</td>
+                        <td className="px-6 py-3 text-slate-500">{i.category}</td>
+                        <td className="px-6 py-3 text-slate-500">{i.patientName}</td>
+                        <td className="px-6 py-3 text-right font-extrabold text-slate-800">₹{i.price}</td>
+                      </tr>
+                    ))}
+                    {items.length === 0 && (
+                      <tr>
+                        <td colSpan="5" className="px-6 py-8 text-center text-slate-400">
+                          No test orders recorded in this range.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
-            <div>
-              <span className="text-2xl font-extrabold text-slate-800">
-                {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(totalCollectionsVal)}
-              </span>
-              <span className="text-[10px] text-slate-400 font-semibold block mt-1">For selected date range</span>
-            </div>
-          </div>
-
-          {/* Trend Chart */}
-          <div className="md:col-span-2 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium h-44 flex flex-col justify-between">
-            <span className="text-xs font-bold text-slate-500 block mb-2">Collection Weekly Trend</span>
-            <div className="h-28 w-full text-xs">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={collectionsTrendData}>
-                  <XAxis dataKey="day" stroke="#cbd5e1" />
-                  <ChartTooltip />
-                  <Area type="monotone" dataKey="amount" stroke="#10b981" fill="#ecfdf5" strokeWidth={2.5} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Data Table */}
-          <div className="md:col-span-3 rounded-2xl border border-slate-200/80 bg-white overflow-hidden shadow-premium">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b bg-slate-50 font-bold text-slate-400 uppercase">
-                  <th className="px-6 py-3">Invoice No</th>
-                  <th className="px-6 py-3">Patient Name</th>
-                  <th className="px-6 py-3">Payment Mode</th>
-                  <th className="px-6 py-3 text-right">Discount (₹)</th>
-                  <th className="px-6 py-3 text-right">Tax (₹)</th>
-                  <th className="px-6 py-3 text-right">Total Collection (₹)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                {billingRecords.map((b) => (
-                  <tr key={b.invoiceNo}>
-                    <td className="px-6 py-3 text-hospital-600 font-bold">{b.invoiceNo}</td>
-                    <td className="px-6 py-3">{b.patientName}</td>
-                    <td className="px-6 py-3 text-slate-400">{b.paymentMode}</td>
-                    <td className="px-6 py-3 text-right text-red-500">-₹{b.discount}</td>
-                    <td className="px-6 py-3 text-right">₹{b.tax}</td>
-                    <td className="px-6 py-3 text-right font-extrabold text-slate-800">₹{b.total}</td>
-                  </tr>
-                ))}
-                {billingRecords.length === 0 && (
-                  <tr>
-                    <td colSpan="6" className="px-6 py-8 text-center text-slate-400">
-                      No invoices recorded in this range.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+          )}
+        </>
       )}
     </div>
   );

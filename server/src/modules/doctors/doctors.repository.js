@@ -3,7 +3,7 @@ import { buildSetClause } from '../../utils/sqlUpdate.js';
 
 const BASE_SELECT = `
   id, doctor_code, name, specialization, phone, email, status,
-  availability_note, experience_years, created_at, updated_at
+  availability_note, experience_years, user_id, created_at, updated_at
 `;
 
 export async function list({ limit, offset, search, status }) {
@@ -36,22 +36,25 @@ export async function list({ limit, offset, search, status }) {
   return { rows, total: countRows[0].total };
 }
 
-export async function findById(id) {
-  const { rows } = await query(`SELECT ${BASE_SELECT} FROM doctors WHERE id = $1 AND deleted_at IS NULL`, [id]);
+export async function findById(id, client) {
+  const q = client ? client.query.bind(client) : query;
+  const { rows } = await q(`SELECT ${BASE_SELECT} FROM doctors WHERE id = $1 AND deleted_at IS NULL`, [id]);
   return rows[0] ?? null;
 }
 
-export async function create({ name, specialization, phone, email, status, availabilityNote, experienceYears }) {
-  const { rows } = await query(
-    `INSERT INTO doctors (name, specialization, phone, email, status, availability_note, experience_years)
-     VALUES ($1, $2, $3, $4, COALESCE($5, 'Active')::staff_status, $6, $7)
+export async function create({ name, specialization, phone, email, status, availabilityNote, experienceYears, userId }, client) {
+  const q = client ? client.query.bind(client) : query;
+  const { rows } = await q(
+    `INSERT INTO doctors (name, specialization, phone, email, status, availability_note, experience_years, user_id)
+     VALUES ($1, $2, $3, $4, COALESCE($5, 'Active')::staff_status, $6, $7, $8)
      RETURNING ${BASE_SELECT}`,
-    [name, specialization, phone, email ?? null, status ?? null, availabilityNote ?? null, experienceYears ?? null]
+    [name, specialization, phone, email ?? null, status ?? null, availabilityNote ?? null, experienceYears ?? null, userId ?? null]
   );
   return rows[0];
 }
 
-export async function update(id, fields) {
+export async function update(id, fields, client) {
+  const q = client ? client.query.bind(client) : query;
   const clause = buildSetClause({
     name: fields.name,
     specialization: fields.specialization,
@@ -61,19 +64,20 @@ export async function update(id, fields) {
     availability_note: fields.availabilityNote,
     experience_years: fields.experienceYears
   });
-  if (!clause) return findById(id);
+  if (!clause) return findById(id, client);
 
-  const { rows } = await query(
+  const { rows } = await q(
     `UPDATE doctors SET ${clause.setSql}, updated_at = now()
      WHERE id = $${clause.values.length + 1} AND deleted_at IS NULL
      RETURNING id`,
     [...clause.values, id]
   );
-  return rows[0] ? findById(id) : null;
+  return rows[0] ? findById(id, client) : null;
 }
 
-export async function setStatus(id, status) {
-  const { rows } = await query(
+export async function setStatus(id, status, client) {
+  const q = client ? client.query.bind(client) : query;
+  const { rows } = await q(
     `UPDATE doctors SET status = $2, updated_at = now()
      WHERE id = $1 AND deleted_at IS NULL
      RETURNING ${BASE_SELECT}`,
@@ -82,8 +86,9 @@ export async function setStatus(id, status) {
   return rows[0] ?? null;
 }
 
-export async function softDelete(id) {
-  const { rows } = await query(
+export async function softDelete(id, client) {
+  const q = client ? client.query.bind(client) : query;
+  const { rows } = await q(
     `UPDATE doctors SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING id, name`,
     [id]
   );
