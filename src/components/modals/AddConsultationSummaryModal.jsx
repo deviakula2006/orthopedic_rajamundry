@@ -1,11 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { useHospital } from '../../context/HospitalContext';
-import { useAuth } from '../../context/AuthContext';
 
-const AddConsultationSummaryModal = ({ isOpen, onClose, patientId }) => {
+const AddConsultationSummaryModal = ({ isOpen, onClose, patientId, onSuccess }) => {
   const { addConsultationSummary } = useHospital();
-  const { user } = useAuth();
   
   const [symptoms, setSymptoms] = useState('');
   const [findings, setFindings] = useState('');
@@ -13,17 +11,17 @@ const AddConsultationSummaryModal = ({ isOpen, onClose, patientId }) => {
   const [advice, setAdvice] = useState('');
   const [followUp, setFollowUp] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!diagnosis.trim()) {
       alert('Please enter a diagnosis.');
       return;
     }
-    addConsultationSummary(
+    await addConsultationSummary(
       patientId, 
-      { symptoms, findings, diagnosis, advice, followUp }, 
-      user?.name || 'Dr. Arjun Kumar'
+      { symptoms, findings, diagnosis, advice, followUp }
     );
+    if (onSuccess) onSuccess();
     onClose();
   };
 

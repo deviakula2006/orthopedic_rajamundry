@@ -95,10 +95,9 @@
 
 
 
-import React, {
+import {
   createContext,
   useContext,
-  useEffect,
   useState
 } from 'react';
 
@@ -107,32 +106,22 @@ import apiClient from '../services/api';
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  // Restore logged-in user when page refreshes
-  useEffect(() => {
+  const [user, setUser] = useState(() => {
     try {
       const storedUser = localStorage.getItem('roh_admin_user');
       const storedToken = localStorage.getItem('roh_auth_token');
-
-      if (storedUser && storedToken) {
-        setUser(JSON.parse(storedUser));
-      }
+      return storedUser && storedToken ? JSON.parse(storedUser) : null;
     } catch (error) {
       console.error('Failed to restore user:', error);
-
-      localStorage.removeItem('roh_admin_user');
-      localStorage.removeItem('roh_auth_token');
-    } finally {
-      setLoading(false);
+      return null;
     }
-  }, []);
+  });
+  const [loading, setLoading] = useState(false);
 
   // LOGIN
   // Backend decides the actual role.
   // The frontend role dropdown is NOT sent to backend.
-  const login = async (username, password, role) => {
+  const login = async (username, password) => {
     setLoading(true);
 
     try {
@@ -229,6 +218,7 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
+/* eslint-disable-next-line react-refresh/only-export-components */
 export const useAuth = () => {
   const context = useContext(AuthContext);
 

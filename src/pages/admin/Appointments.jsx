@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useHospital } from '../../context/HospitalContext';
 import { Table } from '../../components/ui/Table';
-import { Plus, Eye, Edit, Trash2, Calendar, UserPlus, Search, ShieldAlert, HeartPulse, Activity } from 'lucide-react';
+import { Plus, Edit, Trash2, UserPlus, ShieldAlert, HeartPulse, Activity } from 'lucide-react';
 import ThreeDotMenu from '../../components/common/ThreeDotMenu';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import StatusBadge from '../../components/common/StatusBadge';
@@ -22,7 +22,7 @@ const Appointments = () => {
     deleteAppointment
   } = useHospital();
 
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery] = useState('');
   const [selectedApt, setSelectedApt] = useState(null);
   
   // Modal states
@@ -38,7 +38,7 @@ const Appointments = () => {
   const [selectedAptId, setSelectedAptId] = useState('');
 
   // Save new patient and trigger appointment modal
-  const handleSavePatient = (patientData, bookAppointment = false) => {
+  const handleSavePatient = (patientData) => {
     const newPatient = addPatient(patientData);
     if (newPatient) {
       setSelectedPatientId(newPatient.id);

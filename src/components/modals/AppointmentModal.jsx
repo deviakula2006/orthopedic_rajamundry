@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { useHospital } from '../../context/HospitalContext';
 import Autocomplete from '../common/Autocomplete';
 
-const AppointmentModal = ({ isOpen, onClose, onSave, appointment = null, initialPatientId = '' }) => {
+const AppointmentModal = ({ isOpen, onClose, appointment = null, initialPatientId = '' }) => {
   const { patients, doctors, addAppointment, editAppointment } = useHospital();
 
   const [patientId, setPatientId] = useState('');
@@ -13,32 +13,40 @@ const AppointmentModal = ({ isOpen, onClose, onSave, appointment = null, initial
   const [type, setType] = useState('Consultation');
   const [fee, setFee] = useState(500);
 
-  useEffect(() => {
-    if (appointment) {
-      setPatientId(appointment.patientId || '');
-      setDoctorId(appointment.doctorId || '');
-      setDate(appointment.date || '');
-      setTime(appointment.time || '10:00 AM');
-      setType(appointment.type || 'Consultation');
-      setFee(appointment.fee || 500);
-    } else {
-      setPatientId(initialPatientId || '');
-      setDoctorId('');
-      setDate(new Date().toISOString().split('T')[0]);
-      setTime('10:00 AM');
-      setType('Consultation');
-      setFee(500);
-    }
-  }, [appointment, initialPatientId, isOpen]);
+  const [prevApt, setPrevApt] = useState(appointment);
+  const [prevOpen, setPrevOpen] = useState(isOpen);
 
-  // Adjust fee based on appointment type
-  useEffect(() => {
+  if (prevApt !== appointment || prevOpen !== isOpen) {
+    setPrevApt(appointment);
+    setPrevOpen(isOpen);
+    if (isOpen) {
+      if (appointment) {
+        setPatientId(appointment.patientId || '');
+        setDoctorId(appointment.doctorId || '');
+        setDate(appointment.date || '');
+        setTime(appointment.time || '10:00 AM');
+        setType(appointment.type || 'Consultation');
+        setFee(appointment.fee || 500);
+      } else {
+        setPatientId(initialPatientId || '');
+        setDoctorId('');
+        setDate(new Date().toISOString().split('T')[0]);
+        setTime('10:00 AM');
+        setType('Consultation');
+        setFee(500);
+      }
+    }
+  }
+
+  const handleTypeChange = (e) => {
+    const newType = e.target.value;
+    setType(newType);
     if (!appointment) {
-      if (type === 'Therapy') setFee(600);
-      else if (type === 'Follow Up') setFee(300);
+      if (newType === 'Therapy') setFee(600);
+      else if (newType === 'Follow Up') setFee(300);
       else setFee(500);
     }
-  }, [type, appointment]);
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -149,7 +157,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, appointment = null, initial
             </label>
             <select
               value={type}
-              onChange={(e) => setType(e.target.value)}
+              onChange={handleTypeChange}
               className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-hospital-500 transition-all cursor-pointer"
             >
               <option value="Consultation">Consultation</option>

@@ -1,19 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useHospital } from '../../context/HospitalContext';
 import { useAuth } from '../../context/AuthContext';
+import apiClient from '../../services/api';
 import {
   ArrowLeft,
   Heart,
   ClipboardList,
   FileText,
   CheckCircle,
-  Calendar,
   Clock,
-  User,
-  Plus,
   Shield,
-  Briefcase,
   AlertCircle,
   ChevronUp,
   ChevronDown
@@ -35,11 +32,12 @@ const PatientProfile = () => {
   const {
     patients,
     appointments,
-    visitHistory,
     beds,
     updateAppointmentStatus,
     releaseBed,
-    showToast
+    showToast,
+    fetchVisitHistory,
+    completeConsultation
   } = useHospital();
 
   // Modals state
@@ -48,32 +46,117 @@ const PatientProfile = () => {
   const [prescriptionOpen, setPrescriptionOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [completeOpen, setCompleteOpen] = useState(false);
+  const [liveVisits, setLiveVisits] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [patientData, setPatientData] = useState(null);
 
   // Expandable visits timeline state
   const [expandedVisits, setExpandedVisits] = useState({});
 
-  const patient = patients.find((p) => p.id === patientId);
+  const contextPatient = patients.find((p) => p.id === patientId || p.dbId === patientId);
+  const patient = patientData || contextPatient;
 
   // Active doctor appointment
   const activeApt = appointments.find(
-    (a) => a.patientId === patientId && a.status !== 'Completed' && a.status !== 'Cancelled'
+    (a) => (a.patientId === patientId || a.patientId === patient?.id) && a.status !== 'Completed' && a.status !== 'Cancelled'
   );
 
-  // EMR Visit History records
-  const patientEMR = visitHistory.find((r) => r.patientId === patientId) || { visits: [] };
-  const sortedVisits = [...patientEMR.visits].sort(
-    (a, b) => new Date(b.visitDate) - new Date(a.visitDate)
-  );
+  const loadPatientProfile = useCallback(() => {
+    if (!patientId) return;
+    setIsLoading(true);
+    setError(null);
 
-  // Initialize the latest visit to be open by default
+    // 1. Fetch patient profile from API if needed
+    const fetchPatientPromise = apiClient.get(`/patients/${patientId}`).then(res => res.data?.data).catch(() => null);
+    
+    // 2. Fetch live visit history from PostgreSQL REST API
+    const fetchHistoryPromise = fetchVisitHistory(patientId, user?.doctorId);
+
+    Promise.all([fetchPatientPromise, fetchHistoryPromise])
+      .then(([apiPatient, history]) => {
+        if (apiPatient) {
+          setPatientData(apiPatient);
+        }
+        if (history && Array.isArray(history)) {
+          setLiveVisits(history);
+          if (history.length > 0) {
+            setExpandedVisits((prev) => ({
+              ...prev,
+              [history[0].id]: true
+            }));
+          }
+        } else {
+          setLiveVisits([]);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load patient profile data:', err);
+        setError('Failed to load patient record from PostgreSQL');
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, [patientId, user?.doctorId, fetchVisitHistory]);
+
   useEffect(() => {
-    if (sortedVisits.length > 0) {
-      setExpandedVisits((prev) => ({
-        ...prev,
-        [sortedVisits[0].id]: true
-      }));
-    }
-  }, [patientId]);
+    Promise.resolve().then(() => {
+      loadPatientProfile();
+    });
+  }, [loadPatientProfile]);
+
+  const sortedVisits = [...liveVisits].sort(
+    (a, b) => new Date(b.visitDate || b.createdAt) - new Date(a.visitDate || a.createdAt)
+  );
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/doctor/dashboard')}
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 transition-colors cursor-pointer shadow-sm"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <div className="h-5 w-48 bg-slate-200 rounded animate-pulse"></div>
+        </div>
+        <div className="h-44 bg-slate-900 rounded-2xl animate-pulse"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/doctor/dashboard')}
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 transition-colors cursor-pointer shadow-sm"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <h2 className="text-base font-extrabold text-slate-800 leading-none">Consultation Workspace</h2>
+        </div>
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-rose-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-6 w-6 text-rose-600 shrink-0" />
+            <div>
+              <h3 className="text-sm font-bold">Failed to load patient chart</h3>
+              <p className="text-xs text-rose-600 mt-0.5">{error}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={loadPatientProfile}
+            className="inline-flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 rounded-xl transition-colors shadow-sm shrink-0"
+          >
+            <span>Retry Loading</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!patient) {
     return (
@@ -105,14 +188,13 @@ const PatientProfile = () => {
     }
   };
 
-  const handleMarkCompleted = () => {
+  const handleMarkCompleted = async () => {
     if (activeApt) {
-      updateAppointmentStatus(activeApt.id, 'Completed');
-      const occupiedBed = beds.find((b) => b.patientId === patientId);
+      await completeConsultation(patientId, {});
+      const occupiedBed = beds.find((b) => b.patientId === patientId || b.patientId === patient.id);
       if (occupiedBed) {
         releaseBed(occupiedBed.bedNo);
       }
-      showToast(`Consultation completed for ${patient.name}`);
     }
     setCompleteOpen(false);
     navigate('/doctor/dashboard');
@@ -597,24 +679,28 @@ const PatientProfile = () => {
         isOpen={vitalsOpen}
         onClose={() => setVitalsOpen(false)}
         patientId={patientId}
+        onSuccess={loadPatientProfile}
       />
 
       <OrderInvestigationModal
         isOpen={investigationOpen}
         onClose={() => setInvestigationOpen(false)}
         patientId={patientId}
+        onSuccess={loadPatientProfile}
       />
 
       <AddPrescriptionModal
         isOpen={prescriptionOpen}
         onClose={() => setPrescriptionOpen(false)}
         patientId={patientId}
+        onSuccess={loadPatientProfile}
       />
 
       <AddConsultationSummaryModal
         isOpen={summaryOpen}
         onClose={() => setSummaryOpen(false)}
         patientId={patientId}
+        onSuccess={loadPatientProfile}
       />
 
       <ConfirmationModal

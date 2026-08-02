@@ -1,22 +1,25 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, ChevronsUpDown, AlertCircle } from 'lucide-react';
 
 export const Table = ({
   columns,
   data,
-  searchPlaceholder = "Search...",
   searchKey = "name",
-  filterElement = null,
   emptyMessage = "No records found",
   actions = null,
   isLoading = false,
   itemsPerPage = 5
 }) => {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
-  // Handle Search & Filtering
+  const [prevQuery, setPrevQuery] = useState(searchQuery);
+  if (prevQuery !== searchQuery) {
+    setPrevQuery(searchQuery);
+    setCurrentPage(1);
+  }
+
   const filteredData = useMemo(() => {
     let result = [...data];
 
@@ -42,13 +45,7 @@ export const Table = ({
     return result;
   }, [data, searchQuery, searchKey, sortConfig]);
 
-  // Handle Pagination
   const totalPages = Math.ceil(filteredData.length / itemsPerPage) || 1;
-  
-  // Reset page when search query changes
-  React.useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery]);
 
   const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { useHospital } from '../../context/HospitalContext';
 
@@ -7,15 +7,22 @@ const InvestigationModal = ({ isOpen, onClose, investigation = null }) => {
   const [testName, setTestName] = useState('');
   const [price, setPrice] = useState('');
 
-  useEffect(() => {
-    if (investigation) {
-      setTestName(investigation.testName || '');
-      setPrice(investigation.price || '');
-    } else {
-      setTestName('');
-      setPrice('');
+  const [prevInv, setPrevInv] = useState(investigation);
+  const [prevOpen, setPrevOpen] = useState(isOpen);
+
+  if (prevInv !== investigation || prevOpen !== isOpen) {
+    setPrevInv(investigation);
+    setPrevOpen(isOpen);
+    if (isOpen) {
+      if (investigation) {
+        setTestName(investigation.testName || '');
+        setPrice(investigation.price || '');
+      } else {
+        setTestName('');
+        setPrice('');
+      }
     }
-  }, [investigation, isOpen]);
+  }
 
   const handleSubmit = (e) => {
     e.preventDefault();

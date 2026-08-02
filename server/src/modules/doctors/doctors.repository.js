@@ -94,3 +94,49 @@ export async function softDelete(id, client) {
   );
   return rows[0] ?? null;
 }
+
+export async function findByUserId(userId, client) {
+  const q = client ? client.query.bind(client) : query;
+  const { rows } = await q(`SELECT ${BASE_SELECT} FROM doctors WHERE user_id = $1 AND deleted_at IS NULL`, [userId]);
+  return rows[0] ?? null;
+}
+
+export async function findByCode(doctorCode, client) {
+  const q = client ? client.query.bind(client) : query;
+  const { rows } = await q(`SELECT ${BASE_SELECT} FROM doctors WHERE doctor_code = $1 AND deleted_at IS NULL`, [doctorCode]);
+  return rows[0] ?? null;
+}
+
+export async function getDoctorDashboardSummary({ doctorId, date }) {
+  const targetDate = date || new Date().toISOString().slice(0, 10);
+
+  const { rows: metricRows } = await query(
+    `SELECT
+       COUNT(*)::int AS total_appointments,
+       COUNT(*) FILTER (WHERE a.status::text IN ('Scheduled', 'In Consultation'))::int AS pending_consultations,
+       COUNT(*) FILTER (WHERE a.status::text = 'Completed')::int AS completed_consultations
+     FROM appointments a
+     WHERE a.doctor_id = $1 AND a.appointment_date = $2`,
+    [doctorId, targetDate]
+  );
+
+  const { rows: queueRows } = await query(
+    `SELECT
+       a.id AS appointment_id, a.appointment_code, a.appointment_date, a.appointment_time,
+       a.type, a.status AS appointment_status, a.notes AS chief_complaint,
+       p.id AS patient_id, p.patient_code, p.name AS patient_name, p.age AS patient_age,
+       p.gender AS patient_gender, p.phone AS patient_phone, p.primary_diagnosis,
+       c.id AS consultation_id, c.status AS consultation_status, c.diagnosis AS consultation_diagnosis
+     FROM appointments a
+     JOIN patients p ON p.id = a.patient_id
+     LEFT JOIN consultations c ON c.appointment_id = a.id
+     WHERE a.doctor_id = $1 AND a.appointment_date = $2
+     ORDER BY a.appointment_time ASC`,
+    [doctorId, targetDate]
+  );
+
+  return {
+    metrics: metricRows[0] || { total_appointments: 0, pending_consultations: 0, completed_consultations: 0 },
+    queue: queueRows
+  };
+}

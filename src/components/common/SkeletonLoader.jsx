@@ -1,5 +1,3 @@
-import React from 'react';
-
 const SkeletonLoader = ({ type = 'table', rows = 5 }) => {
   if (type === 'table') {
     return (

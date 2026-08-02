@@ -12,6 +12,7 @@ import { activitiesRouter } from '../modules/activities/activities.routes.js';
 import { dashboardRouter } from '../modules/dashboard/dashboard.routes.js';
 import { hospitalSettingsRouter } from '../modules/hospitalSettings/hospitalSettings.routes.js';
 import { reportsRouter } from '../modules/reports/reports.routes.js';
+import { consultationsRouter } from '../modules/consultations/consultations.routes.js';
 
 export const apiRouter = Router();
 
@@ -28,3 +29,4 @@ apiRouter.use('/activities', activitiesRouter);
 apiRouter.use('/dashboard', dashboardRouter);
 apiRouter.use('/hospital-settings', hospitalSettingsRouter);
 apiRouter.use('/reports', reportsRouter);
+apiRouter.use('/consultations', consultationsRouter);

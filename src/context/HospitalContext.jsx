@@ -641,7 +641,7 @@
 //   return context;
 // };
 
-import React, {
+import {
   createContext,
   useCallback,
   useContext,
@@ -653,7 +653,6 @@ import apiClient from '../services/api';
 import { useAuth } from './AuthContext';
 import { formatDisplayDate } from '../utils/formatDate';
 import { timeAgo } from '../utils/timeAgo';
-import { INITIAL_VISIT_HISTORY } from '../mock-data/visitHistory';
 
 const HospitalContext = createContext(null);
 
@@ -863,35 +862,7 @@ export const HospitalProvider = ({ children }) => {
      Later these functions should be migrated to PostgreSQL APIs.
   -------------------------------------------------------------------------- */
 
-  const [visitHistory, setVisitHistory] = useState(() => {
-    const saved = localStorage.getItem('roh_visit_history');
-
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (error) {
-        console.error(
-          'Failed to parse saved visit history. Using initial data.',
-          error
-        );
-      }
-    }
-
-    return INITIAL_VISIT_HISTORY;
-  });
-
   const [toasts, setToasts] = useState([]);
-
-  /* ==========================================================================
-     VISIT HISTORY LOCAL STORAGE
-  ========================================================================== */
-
-  useEffect(() => {
-    localStorage.setItem(
-      'roh_visit_history',
-      JSON.stringify(visitHistory)
-    );
-  }, [visitHistory]);
 
   /* ==========================================================================
      TOAST HELPERS
@@ -1043,20 +1014,30 @@ export const HospitalProvider = ({ children }) => {
   }, [refreshActivities, fetchDashboardSummary, reportError]);
 
   useEffect(() => {
+    let active = true;
     if (isAuthenticated) {
-      fetchAll();
+      Promise.resolve().then(() => {
+        if (active) fetchAll().catch(() => {});
+      });
     } else {
-      setPatients([]);
-      setDoctors([]);
-      setReceptionists([]);
-      setInvestigations([]);
-      setAppointments([]);
-      setBeds([]);
-      setBills([]);
-      setActivities([]);
-      setHospitalSettings(null);
-      setDashboardSummary(null);
+      Promise.resolve().then(() => {
+        if (active) {
+          setPatients([]);
+          setDoctors([]);
+          setReceptionists([]);
+          setInvestigations([]);
+          setAppointments([]);
+          setBeds([]);
+          setBills([]);
+          setActivities([]);
+          setHospitalSettings(null);
+          setDashboardSummary(null);
+        }
+      });
     }
+    return () => {
+      active = false;
+    };
   }, [isAuthenticated, fetchAll]);
 
   /* ==========================================================================
@@ -2428,391 +2409,198 @@ const toggleDoctorStatus = async (code) => {
      Current backend branch has no endpoints for these workflows.
   ========================================================================== */
 
-  const getOrCreateTodayVisit = (
-    previousHistory,
-    patientId,
-    doctorName = 'Dr. Arjun Kumar'
-  ) => {
-    const today = new Date()
-      .toISOString()
-      .split('T')[0];
+  const fetchVisitHistory = useCallback(async (patientCodeOrId, doctorCodeOrId) => {
+    if (!patientCodeOrId) return [];
+    const targetPatient = patients.find(p => p.id === patientCodeOrId || p.dbId === patientCodeOrId);
+    const targetPatientId = targetPatient ? targetPatient.dbId : patientCodeOrId;
 
-    const patientRecord =
-      previousHistory.find(
-        (record) =>
-          record.patientId === patientId
-      );
+    const targetDoctor = doctorCodeOrId ? doctors.find(d => d.id === doctorCodeOrId || d.dbId === doctorCodeOrId) : null;
+    const targetDoctorId = targetDoctor ? targetDoctor.dbId : (doctorCodeOrId || undefined);
 
-    const emptyVisit = {
-      id: `VIS-${Date.now()}`,
-      visitDate: today,
-      appointmentId: '',
-      doctorName,
-      doctorId: 'DOC001',
-      appointmentType: 'Consultation',
-      billRefNo: '',
-      vitals: [],
-      investigations: [],
-      prescriptions: [],
-      summary: null
-    };
+    try {
+      const response = await apiClient.get(`/consultations/patient/${targetPatientId}/history`, {
+        params: { doctorId: targetDoctorId }
+      });
+      return response.data.data;
+    } catch (error) {
+      console.error('Failed to load EMR visit history:', error);
+      return [];
+    }
+  }, [patients, doctors]);
 
-    if (patientRecord) {
-      const todayVisit =
-        patientRecord.visits.find(
-          (visit) =>
-            visit.visitDate === today
-        );
+  const addVitals = async (patientId, vitals) => {
+    const targetPatient = patients.find(p => p.id === patientId || p.dbId === patientId);
+    const targetPatientId = targetPatient ? targetPatient.dbId : patientId;
 
-      if (todayVisit) {
-        return previousHistory;
+    const activeApt = appointments.find(
+      a => (a.patientId === patientId || a.patientId === targetPatient?.code) && a.status !== 'Completed' && a.status !== 'Cancelled'
+    );
+
+    try {
+      let bpSystolic, bpDiastolic;
+      if (vitals.bp && vitals.bp.includes('/')) {
+        const parts = vitals.bp.split('/');
+        bpSystolic = parseInt(parts[0], 10) || undefined;
+        bpDiastolic = parseInt(parts[1], 10) || undefined;
       }
 
-      return previousHistory.map(
-        (record) => {
-          if (
-            record.patientId === patientId
-          ) {
-            return {
-              ...record,
-              visits: [
-                emptyVisit,
-                ...record.visits
-              ]
-            };
-          }
+      await apiClient.post('/consultations/vitals', {
+        patientId: targetPatientId,
+        appointmentId: activeApt ? activeApt.dbId : undefined,
+        bpSystolic,
+        bpDiastolic,
+        bpText: vitals.bp || undefined,
+        pulse: vitals.pulse ? parseInt(vitals.pulse, 10) : undefined,
+        temperature: vitals.temp ? parseFloat(vitals.temp) : undefined,
+        weight: vitals.weight ? parseFloat(vitals.weight) : undefined,
+        height: vitals.height ? parseFloat(vitals.height) : undefined,
+        spo2: vitals.spo2 ? parseInt(vitals.spo2, 10) : undefined,
+        bloodSugar: vitals.sugar ? parseInt(vitals.sugar, 10) : undefined,
+        bmi: vitals.bmi ? parseFloat(vitals.bmi) : undefined
+      });
 
-          return record;
-        }
-      );
+      showToast('Vitals recorded successfully!');
+      await fetchAll();
+    } catch (error) {
+      reportError(error, 'Failed to record vitals');
+    }
+  };
+
+  const orderInvestigation = async (patientId, test) => {
+    const targetPatient = patients.find(p => p.id === patientId || p.dbId === patientId);
+
+    const activeApt = appointments.find(
+      a => (a.patientId === patientId || a.patientId === targetPatient?.code) && a.status !== 'Completed' && a.status !== 'Cancelled'
+    );
+
+    if (!activeApt) {
+      showToast('No active appointment slot for this patient.', 'error');
+      return;
     }
 
-    return [
-      {
-        patientId,
-        visits: [emptyVisit]
-      },
-      ...previousHistory
-    ];
+    try {
+      const consRes = await apiClient.get(`/consultations/appointment/${activeApt.dbId}`);
+      const consId = consRes.data.data.id;
+
+      const inv = investigations.find(i => i.id === test.id || i.testName === test.testName);
+
+      await apiClient.post('/consultations/investigations', {
+        consultationId: consId,
+        investigationId: inv ? inv.dbId : undefined,
+        testName: test.testName
+      });
+
+      showToast('Investigation ordered successfully!');
+      await fetchAll();
+    } catch (error) {
+      reportError(error, 'Failed to order investigation');
+    }
   };
 
-  const addVitals = (
-    patientId,
-    vitals,
-    addedBy = 'Dr. Arjun Kumar'
-  ) => {
-    const today = new Date()
-      .toISOString()
-      .split('T')[0];
+  const addPrescription = async (patientId, prescriptionList) => {
+    const targetPatient = patients.find(p => p.id === patientId || p.dbId === patientId);
 
-    const currentTime =
-      new Date().toLocaleTimeString(
-        'en-US',
-        {
-          hour: '2-digit',
-          minute: '2-digit'
-        }
-      );
-
-    setVisitHistory((previous) => {
-      const initialized =
-        getOrCreateTodayVisit(
-          previous,
-          patientId,
-          addedBy
-        );
-
-      return initialized.map(
-        (record) => {
-          if (
-            record.patientId !== patientId
-          ) {
-            return record;
-          }
-
-          return {
-            ...record,
-
-            visits: record.visits.map(
-              (visit) =>
-                visit.visitDate === today
-                  ? {
-                      ...visit,
-
-                      vitals: [
-                        ...(visit.vitals || []),
-
-                        {
-                          time: currentTime,
-                          date: today,
-                          addedBy,
-                          ...vitals
-                        }
-                      ]
-                    }
-                  : visit
-            )
-          };
-        }
-      );
-    });
-
-    showToast(
-      'Vitals recorded successfully!'
+    const activeApt = appointments.find(
+      a => (a.patientId === patientId || a.patientId === targetPatient?.code) && a.status !== 'Completed' && a.status !== 'Cancelled'
     );
+
+    if (!activeApt) {
+      showToast('No active appointment slot for this patient.', 'error');
+      return;
+    }
+
+    try {
+      const consRes = await apiClient.get(`/consultations/appointment/${activeApt.dbId}`);
+      const consId = consRes.data.data.id;
+
+      await apiClient.post('/consultations/prescriptions/batch', {
+        consultationId: consId,
+        prescriptions: prescriptionList.map(item => ({
+          medicineName: item.medicineName,
+          dosage: item.dosage,
+          frequency: item.frequency,
+          duration: item.duration,
+          instructions: item.notes || item.instructions || ''
+        }))
+      });
+
+      showToast('Prescription saved successfully!');
+      await fetchAll();
+    } catch (error) {
+      reportError(error, 'Failed to save prescription');
+    }
   };
 
-  const orderInvestigation = (
-    patientId,
-    test,
-    orderedBy = 'Dr. Arjun Kumar'
-  ) => {
-    const today = new Date()
-      .toISOString()
-      .split('T')[0];
+  const addConsultationSummary = async (patientId, summary) => {
+    const targetPatient = patients.find(p => p.id === patientId || p.dbId === patientId);
 
-    const currentTime =
-      new Date().toLocaleTimeString(
-        'en-US',
-        {
-          hour: '2-digit',
-          minute: '2-digit'
-        }
-      );
-
-    const newOrder = {
-      testId:
-        test.id || `INV-${Date.now()}`,
-
-      testName: test.testName,
-      orderedBy,
-      orderedDate: today,
-      orderedTime: currentTime,
-      status: 'Ordered'
-    };
-
-    setVisitHistory((previous) => {
-      const initialized =
-        getOrCreateTodayVisit(
-          previous,
-          patientId,
-          orderedBy
-        );
-
-      return initialized.map(
-        (record) => {
-          if (
-            record.patientId !== patientId
-          ) {
-            return record;
-          }
-
-          return {
-            ...record,
-
-            visits: record.visits.map(
-              (visit) =>
-                visit.visitDate === today
-                  ? {
-                      ...visit,
-
-                      investigations: [
-                        ...(visit.investigations ||
-                          []),
-
-                        newOrder
-                      ]
-                    }
-                  : visit
-            )
-          };
-        }
-      );
-    });
-
-    showToast(
-      'Investigation ordered successfully!'
+    const activeApt = appointments.find(
+      a => (a.patientId === patientId || a.patientId === targetPatient?.code) && a.status !== 'Completed' && a.status !== 'Cancelled'
     );
+
+    if (!activeApt) {
+      showToast('No active appointment slot for this patient.', 'error');
+      return;
+    }
+
+    try {
+      const consRes = await apiClient.get(`/consultations/appointment/${activeApt.dbId}`);
+      const consId = consRes.data.data.id;
+
+      await apiClient.put(`/consultations/${consId}`, {
+        symptoms: summary.symptoms,
+        clinicalNotes: summary.findings,
+        diagnosis: summary.diagnosis,
+        treatmentPlan: summary.advice,
+        followUpAdvice: summary.followUp
+      });
+
+      showToast('Consultation summary saved!');
+      await fetchAll();
+    } catch (error) {
+      reportError(error, 'Failed to save consultation summary');
+    }
   };
 
-  const addPrescription = (
-    patientId,
-    prescriptionList,
-    addedBy = 'Dr. Arjun Kumar'
-  ) => {
-    const today = new Date()
-      .toISOString()
-      .split('T')[0];
+  const completeConsultation = async (patientId, summary = {}) => {
+    const targetPatient = patients.find(p => p.id === patientId || p.dbId === patientId);
 
-    const currentTime =
-      new Date().toLocaleTimeString(
-        'en-US',
-        {
-          hour: '2-digit',
-          minute: '2-digit'
-        }
-      );
-
-    const newPrescriptionItems =
-      prescriptionList.map((item) => ({
-        ...item,
-        addedBy,
-        date: today,
-        time: currentTime
-      }));
-
-    setVisitHistory((previous) => {
-      const initialized =
-        getOrCreateTodayVisit(
-          previous,
-          patientId,
-          addedBy
-        );
-
-      return initialized.map(
-        (record) => {
-          if (
-            record.patientId !== patientId
-          ) {
-            return record;
-          }
-
-          return {
-            ...record,
-
-            visits: record.visits.map(
-              (visit) =>
-                visit.visitDate === today
-                  ? {
-                      ...visit,
-
-                      prescriptions: [
-                        ...(visit.prescriptions ||
-                          []),
-
-                        ...newPrescriptionItems
-                      ]
-                    }
-                  : visit
-            )
-          };
-        }
-      );
-    });
-
-    showToast(
-      'Prescription saved successfully!'
+    const activeApt = appointments.find(
+      a => (a.patientId === patientId || a.patientId === targetPatient?.code) && a.status !== 'Completed' && a.status !== 'Cancelled'
     );
+
+    if (!activeApt) {
+      showToast('No active appointment slot to complete.', 'error');
+      return;
+    }
+
+    try {
+      const consRes = await apiClient.get(`/consultations/appointment/${activeApt.dbId}`);
+      const consId = consRes.data.data.id;
+
+      await apiClient.post(`/consultations/${consId}/complete`, {
+        symptoms: summary.symptoms,
+        clinicalNotes: summary.findings,
+        diagnosis: summary.diagnosis,
+        treatmentPlan: summary.advice,
+        followUpAdvice: summary.followUp
+      });
+
+      showToast(`Consultation marked completed!`);
+      await fetchAll();
+    } catch (error) {
+      reportError(error, 'Failed to complete consultation');
+    }
   };
 
-  const addConsultationSummary = (
-    patientId,
-    summary,
-    addedBy = 'Dr. Arjun Kumar'
-  ) => {
-    const today = new Date()
-      .toISOString()
-      .split('T')[0];
-
-    const currentTime =
-      new Date().toLocaleTimeString(
-        'en-US',
-        {
-          hour: '2-digit',
-          minute: '2-digit'
-        }
-      );
-
-    const newSummary = {
-      ...summary,
-      addedBy,
-      date: today,
-      time: currentTime
-    };
-
-    setVisitHistory((previous) => {
-      const initialized =
-        getOrCreateTodayVisit(
-          previous,
-          patientId,
-          addedBy
-        );
-
-      return initialized.map(
-        (record) => {
-          if (
-            record.patientId !== patientId
-          ) {
-            return record;
-          }
-
-          return {
-            ...record,
-
-            visits: record.visits.map(
-              (visit) =>
-                visit.visitDate === today
-                  ? {
-                      ...visit,
-                      summary: newSummary
-                    }
-                  : visit
-            )
-          };
-        }
-      );
-    });
-
-    /*
-      Preserve base frontend behaviour.
-
-      This updates frontend state only.
-
-      We intentionally do not automatically call editPatient here because
-      saving a consultation summary and changing the patient's diagnosis are
-      different backend operations.
-    */
-
-    setPatients((previous) =>
-      previous.map((patient) =>
-        patient.id === patientId
-          ? {
-              ...patient,
-              disease: summary.diagnosis
-            }
-          : patient
-      )
-    );
-
-    showToast(
-      'Consultation summary saved!'
-    );
-  };
-
-  const addConsultationNotes = (
-    patientId,
-    notes,
-    doctorName = 'Dr. Arjun Kumar'
-  ) => {
-    addConsultationSummary(
-      patientId,
-      {
-        symptoms:
-          'Follow-up consultation notes recorded.',
-
-        findings:
-          'Regular examination.',
-
-        diagnosis:
-          'Osteoarthritis Knee',
-
-        advice: notes,
-
-        followUp:
-          'As advised'
-      },
-      doctorName
-    );
+  const addConsultationNotes = (patientId, notes, doctorName = 'Doctor') => {
+    addConsultationSummary(patientId, {
+      symptoms: 'Follow-up consultation notes recorded.',
+      findings: 'Regular examination.',
+      diagnosis: 'Osteoarthritis Knee',
+      advice: notes,
+      followUp: 'As advised'
+    }, doctorName);
   };
 
   /* ==========================================================================
@@ -3027,8 +2815,6 @@ const toggleDoctorStatus = async (code) => {
     dashboardSummary,
     fetchDashboardSummary,
 
-    visitHistory,
-
     toasts,
     showToast,
 
@@ -3063,6 +2849,8 @@ const toggleDoctorStatus = async (code) => {
     addPrescription,
     addConsultationSummary,
     addConsultationNotes,
+    completeConsultation,
+    fetchVisitHistory,
 
     addBill,
     getBillDetail,
@@ -3078,6 +2866,7 @@ const toggleDoctorStatus = async (code) => {
   );
 };
 
+/* eslint-disable-next-line react-refresh/only-export-components */
 export const useHospital = () => {
   const context = useContext(
     HospitalContext

@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from '../components/common/Sidebar';
 import Topbar from '../components/common/Topbar';
 import { useHospital } from '../context/HospitalContext';
-import { X, CheckCircle, AlertTriangle, Info, AlertOctagon } from 'lucide-react';
+import { CheckCircle, AlertTriangle, Info, AlertOctagon } from 'lucide-react';
 
 const AppLayout = () => {
   

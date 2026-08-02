@@ -33,3 +33,13 @@ export const remove = asyncHandler(async (req, res) => {
   await doctorsService.deleteDoctor(req.params.id, req.user);
   sendSuccess(res, { data: null });
 });
+
+export const getMe = asyncHandler(async (req, res) => {
+  const doctor = await doctorsService.getDoctorMe(req.user);
+  sendSuccess(res, { data: doctor });
+});
+
+export const getDashboard = asyncHandler(async (req, res) => {
+  const summary = await doctorsService.getDoctorDashboard(req.user, req.query);
+  sendSuccess(res, { data: summary });
+});

@@ -11,7 +11,7 @@ const DOCS_DIR = path.resolve(__dirname, '../../../docs');
 // of truth for the schema (see docs/DATABASE_SCHEMA.md) — future structural
 // changes should be added here as new files rather than editing schema.sql
 // in place, once it has run against a real environment.
-const MIGRATIONS = ['schema.sql', '0002_hospital_settings.sql'];
+const MIGRATIONS = ['schema.sql', '0002_hospital_settings.sql', '0003_doctor_consultations.sql'];
 
 async function ensureMigrationsTable() {
   await pool.query(`

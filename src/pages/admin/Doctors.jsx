@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useHospital } from '../../context/HospitalContext';
 import { Table } from '../../components/ui/Table';
 import { Modal } from '../../components/ui/Modal';

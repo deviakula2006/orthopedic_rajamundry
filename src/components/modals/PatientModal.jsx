@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Modal } from '../ui/Modal';
 
 const PatientModal = ({
@@ -16,25 +16,32 @@ const PatientModal = ({
   const [address, setAddress] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (patient) {
-      setName(patient.name || '');
-      setPhone(patient.phone || '');
-      setAge(patient.age ?? '');
-      setGender(patient.gender || 'Male');
-      setBloodGroup(patient.bloodGroup || 'O+');
-      setDiagnosis(patient.diagnosis || '');
-      setAddress(patient.address || '');
-    } else {
-      setName('');
-      setPhone('');
-      setAge('');
-      setGender('Male');
-      setBloodGroup('O+');
-      setDiagnosis('');
-      setAddress('');
+  const [prevPatient, setPrevPatient] = useState(patient);
+  const [prevOpen, setPrevOpen] = useState(isOpen);
+
+  if (prevPatient !== patient || prevOpen !== isOpen) {
+    setPrevPatient(patient);
+    setPrevOpen(isOpen);
+    if (isOpen) {
+      if (patient) {
+        setName(patient.name || '');
+        setPhone(patient.phone || '');
+        setAge(patient.age ?? '');
+        setGender(patient.gender || 'Male');
+        setBloodGroup(patient.bloodGroup || 'O+');
+        setDiagnosis(patient.diagnosis || '');
+        setAddress(patient.address || '');
+      } else {
+        setName('');
+        setPhone('');
+        setAge('');
+        setGender('Male');
+        setBloodGroup('O+');
+        setDiagnosis('');
+        setAddress('');
+      }
     }
-  }, [patient, isOpen]);
+  }
 
   const handleSubmit = async (e, bookAppointment = false) => {
     e.preventDefault();

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useHospital } from '../../context/HospitalContext';
 import apiClient from '../../services/api';
 import { Download, Calendar, Users, Receipt, Activity } from 'lucide-react';

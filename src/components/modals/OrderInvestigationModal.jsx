@@ -1,20 +1,19 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { useHospital } from '../../context/HospitalContext';
-import { useAuth } from '../../context/AuthContext';
 
-const OrderInvestigationModal = ({ isOpen, onClose, patientId }) => {
+const OrderInvestigationModal = ({ isOpen, onClose, patientId, onSuccess }) => {
   const { investigations, orderInvestigation } = useHospital();
-  const { user } = useAuth();
   const [selectedTestId, setSelectedTestId] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!selectedTestId) return;
 
     const test = investigations.find((i) => i.id === selectedTestId);
     if (test) {
-      orderInvestigation(patientId, test, user?.name || 'Dr. Arjun Kumar');
+      await orderInvestigation(patientId, test);
+      if (onSuccess) onSuccess();
     }
     onClose();
   };

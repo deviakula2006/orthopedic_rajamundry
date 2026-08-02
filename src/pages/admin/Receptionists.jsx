@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useHospital } from '../../context/HospitalContext';
 import { Table } from '../../components/ui/Table';
 import { Modal } from '../../components/ui/Modal';
@@ -11,8 +11,7 @@ const Receptionists = () => {
     receptionists,
     addReceptionist,
     editReceptionist,
-    deleteReceptionist,
-    showToast
+    deleteReceptionist
   } = useHospital();
 
   const [isAddOpen, setIsAddOpen] = useState(false);

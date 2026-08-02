@@ -174,3 +174,51 @@ export async function deleteDoctor(id, actor) {
     entityId: row.id
   });
 }
+
+export async function getDoctorMe(user) {
+  const doctor = await doctorsRepository.findByUserId(user.id);
+  if (!doctor) throw ApiError.notFound('Doctor profile not found for logged in user');
+  return serializeDoctor(doctor);
+}
+
+export async function getDoctorDashboard(user, queryParams = {}) {
+  let doctor = await doctorsRepository.findByUserId(user.id);
+
+  if (!doctor && queryParams.doctorId) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(queryParams.doctorId);
+    doctor = isUuid ? await doctorsRepository.findById(queryParams.doctorId) : await doctorsRepository.findByCode(queryParams.doctorId);
+  }
+
+  if (!doctor) throw ApiError.notFound('Doctor profile not found');
+
+  const summary = await doctorsRepository.getDoctorDashboardSummary({
+    doctorId: doctor.id,
+    date: queryParams.date
+  });
+
+  return {
+    doctor: serializeDoctor(doctor),
+    metrics: {
+      totalAppointments: summary.metrics.total_appointments,
+      pendingConsultations: summary.metrics.pending_consultations,
+      completedConsultations: summary.metrics.completed_consultations
+    },
+    queue: summary.queue.map((row) => ({
+      appointmentId: row.appointment_id,
+      appointmentCode: row.appointment_code,
+      date: row.appointment_date,
+      time: row.appointment_time,
+      type: row.type,
+      status: row.appointment_status,
+      chiefComplaint: row.chief_complaint || 'General Checkup',
+      patientId: row.patient_code,
+      patientDbId: row.patient_id,
+      patientName: row.patient_name,
+      patientAge: row.patient_age,
+      patientGender: row.patient_gender,
+      patientPhone: row.patient_phone,
+      consultationId: row.consultation_id,
+      consultationStatus: row.consultation_status
+    }))
+  };
+}

@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useHospital } from '../../context/HospitalContext';
 import { Table } from '../../components/ui/Table';
 import { Modal } from '../../components/ui/Modal';
-import { Plus, Printer, Trash2, Eye, Receipt, PlusCircle } from 'lucide-react';
+import { Plus, Printer, Eye, Receipt, PlusCircle } from 'lucide-react';
 import Autocomplete from '../../components/common/Autocomplete';
 
 const Billing = () => {
@@ -41,26 +41,15 @@ const Billing = () => {
     setDiscount(0);
     setConsultationFee(500);
     setSelectedInvId('');
-    setBillItems([]);
+    setBillItems([
+      {
+        description: 'Consultation Fee - Doctor',
+        type: 'Consultation',
+        amount: 500
+      }
+    ]);
     setIsCreateOpen(true);
   };
-
-  // Auto update items based on Consultation selection
-  useEffect(() => {
-    if (billType === 'Consultation') {
-      const docName = activeDoctorObj ? activeDoctorObj.name : 'Doctor';
-      setBillItems([
-        {
-          description: `Consultation Fee - ${docName}`,
-          type: 'Consultation',
-          amount: parseFloat(consultationFee) || 500
-        }
-      ]);
-    } else {
-      // Clear items when switching to Investigations (so they can add tests manually)
-      setBillItems([]);
-    }
-  }, [billType, doctorId, consultationFee]);
 
   const handleSelectInvestigation = (invId) => {
     setSelectedInvId(invId);

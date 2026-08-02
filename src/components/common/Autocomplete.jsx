@@ -1,20 +1,17 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Search, ChevronDown, X } from 'lucide-react';
 
 const Autocomplete = ({ options, value, onChange, placeholder, displayKey = 'name', idKey = 'id' }) => {
-  const [searchTerm, setSearchTerm] = useState('');
+  const selectedItem = options.find((opt) => opt[idKey] === value);
+  const [searchTerm, setSearchTerm] = useState(selectedItem ? selectedItem[displayKey] : '');
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef(null);
 
-  const selectedItem = options.find((opt) => opt[idKey] === value);
-
-  useEffect(() => {
-    if (selectedItem) {
-      setSearchTerm(selectedItem[displayKey]);
-    } else {
-      setSearchTerm('');
-    }
-  }, [selectedItem, displayKey]);
+  const [prevSelectedItem, setPrevSelectedItem] = useState(selectedItem);
+  if (prevSelectedItem !== selectedItem) {
+    setPrevSelectedItem(selectedItem);
+    setSearchTerm(selectedItem ? selectedItem[displayKey] : '');
+  }
 
   useEffect(() => {
     const handleClickOutside = (event) => {

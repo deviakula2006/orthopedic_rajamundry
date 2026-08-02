@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useHospital } from '../../context/HospitalContext';
 import {
@@ -10,8 +10,7 @@ import {
   ArrowUpRight,
   TrendingUp,
   Stethoscope,
-  Receipt,
-  PlusCircle
+  Receipt
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -30,22 +29,13 @@ import orthoIll from '../../assets/ortho_ill.png';
 import PatientModal from '../../components/modals/PatientModal';
 import AppointmentModal from '../../components/modals/AppointmentModal';
 import InvestigationModal from '../../components/modals/InvestigationModal';
-import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
   const {
-    patients,
-    appointments,
-    bills,
-    beds,
     activities,
-    doctors,
-    receptionists,
     addPatient,
     dashboardSummary
   } = useHospital();
-  
-  const navigate = useNavigate();
 
   // Modal states
   const [patientModalOpen, setPatientModalOpen] = useState(false);
@@ -55,8 +45,6 @@ const Dashboard = () => {
   const handleSavePatient = (patientData) => {
     addPatient(patientData);
   };
-
-  const COLORS = ['#0ea5e9', '#8b5cf6', '#10b981'];
 
   const stats = useMemo(() => {
     if (!dashboardSummary) return [];
@@ -117,12 +105,12 @@ const Dashboard = () => {
   // Chart Data: dynamic trend based on last 7 days of actual appointments and revenue
   const trendData = dashboardSummary?.appointmentsTrend ?? [];
 
-  // Donut Chart: dynamic revenue breakdown from bills
   const pieData = useMemo(() => {
     if (!dashboardSummary) return [];
+    const colors = ['#0284c7', '#0d9488', '#8b5cf6', '#f59e0b', '#ec4899'];
     return dashboardSummary.revenueOverview.map((item, index) => ({
       ...item,
-      color: COLORS[index % COLORS.length]
+      color: colors[index % colors.length]
     }));
   }, [dashboardSummary]);
 

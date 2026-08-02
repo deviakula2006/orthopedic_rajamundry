@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { useHospital } from '../../context/HospitalContext';
 import Autocomplete from '../common/Autocomplete';

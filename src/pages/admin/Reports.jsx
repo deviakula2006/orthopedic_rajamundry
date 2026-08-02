@@ -1,13 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useHospital } from '../../context/HospitalContext';
 import apiClient from '../../services/api';
-import { Download, Calendar, TrendingUp, Users, Receipt, Activity } from 'lucide-react';
+import { Download, Calendar, Users, Receipt, Activity } from 'lucide-react';
 import {
   ResponsiveContainer,
   AreaChart,
   Area,
   XAxis,
-  YAxis,
   Tooltip as ChartTooltip,
   BarChart,
   Bar

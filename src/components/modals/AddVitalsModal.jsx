@@ -1,11 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { useHospital } from '../../context/HospitalContext';
-import { useAuth } from '../../context/AuthContext';
 
-const AddVitalsModal = ({ isOpen, onClose, patientId }) => {
+const AddVitalsModal = ({ isOpen, onClose, patientId, onSuccess }) => {
   const { addVitals } = useHospital();
-  const { user } = useAuth();
   
   const [bp, setBp] = useState('120/80');
   const [sugar, setSugar] = useState('100');
@@ -15,13 +13,13 @@ const AddVitalsModal = ({ isOpen, onClose, patientId }) => {
   const [height, setHeight] = useState('170');
   const [spo2, setSpo2] = useState('98');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    addVitals(
+    await addVitals(
       patientId, 
-      { bp, sugar, temp, pulse, weight, height, spo2 }, 
-      user?.name || 'Dr. Arjun Kumar'
+      { bp, sugar, temp, pulse, weight, height, spo2 }
     );
+    if (onSuccess) onSuccess();
     onClose();
   };
 

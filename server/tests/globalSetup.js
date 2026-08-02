@@ -10,7 +10,7 @@ dotenv.config({ path: path.resolve(__dirname, '../.env.test') });
 const DOCS_DIR = path.resolve(__dirname, '../../docs');
 
 // Mirrors the MIGRATIONS list in src/db/migrate.js — keep both in sync.
-const MIGRATIONS = ['schema.sql', '0002_hospital_settings.sql'];
+const MIGRATIONS = ['schema.sql', '0002_hospital_settings.sql', '0003_doctor_consultations.sql'];
 
 /**
  * Runs once before the whole test suite: recreates the test database from

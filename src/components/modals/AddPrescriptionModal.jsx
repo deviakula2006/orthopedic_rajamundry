@@ -1,12 +1,10 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { useHospital } from '../../context/HospitalContext';
-import { useAuth } from '../../context/AuthContext';
 import { Plus, Trash2 } from 'lucide-react';
 
-const AddPrescriptionModal = ({ isOpen, onClose, patientId }) => {
+const AddPrescriptionModal = ({ isOpen, onClose, patientId, onSuccess }) => {
   const { addPrescription } = useHospital();
-  const { user } = useAuth();
   
   const [medicines, setMedicines] = useState([
     { medicineName: '', dosage: '1 tablet', frequency: 'Twice Daily (1-0-1)', duration: '5 Days', notes: 'Take after food' }
@@ -29,14 +27,15 @@ const AddPrescriptionModal = ({ isOpen, onClose, patientId }) => {
     );
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const validMedicines = medicines.filter((m) => m.medicineName.trim() !== '');
     if (validMedicines.length === 0) {
       alert('Please add at least one medicine name.');
       return;
     }
-    addPrescription(patientId, validMedicines, user?.name || 'Dr. Arjun Kumar');
+    await addPrescription(patientId, validMedicines);
+    if (onSuccess) onSuccess();
     onClose();
   };
 

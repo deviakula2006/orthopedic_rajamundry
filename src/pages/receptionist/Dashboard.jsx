@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState } from 'react';
 import { useHospital } from '../../context/HospitalContext';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -7,9 +6,7 @@ import {
   Calendar,
   IndianRupee,
   Clock,
-  CheckCircle,
-  PlusCircle,
-  Receipt
+  CheckCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -122,7 +119,7 @@ const ReceptionistDashboard = () => {
 
       {/* KPIs Grid */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
-        {stats.map((stat, idx) => {
+        {stats.map((stat) => {
           const Icon = stat.icon;
           return (
             <div

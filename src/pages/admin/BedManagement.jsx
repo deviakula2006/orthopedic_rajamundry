@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useHospital } from '../../context/HospitalContext';
 import { Modal } from '../../components/ui/Modal';
-import { Bed, UserPlus, LogOut, ArrowRightLeft, ShieldAlert } from 'lucide-react';
+import { Bed, LogOut, ArrowRightLeft } from 'lucide-react';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 
 // Modals

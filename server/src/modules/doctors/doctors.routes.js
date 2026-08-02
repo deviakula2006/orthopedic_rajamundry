@@ -12,6 +12,8 @@ const ADMIN_ROLES = [ 'Admin'];
 doctorsRouter.use(authenticate);
 
 doctorsRouter.get('/', validate({ query: listDoctorsQuerySchema }), doctorsController.list);
+doctorsRouter.get('/me', doctorsController.getMe);
+doctorsRouter.get('/dashboard', doctorsController.getDashboard);
 doctorsRouter.get('/:id', validate({ params: idParamSchema }), doctorsController.getById);
 doctorsRouter.post('/', requireRole(...ADMIN_ROLES), validate({ body: createDoctorSchema }), doctorsController.create);
 doctorsRouter.put(
