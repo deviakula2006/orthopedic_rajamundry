@@ -27,11 +27,13 @@ export async function getAppointmentsTodayCount() {
 }
 
 export async function getBedOccupancy() {
-  const { rows } = await query('SELECT status, COUNT(*)::int AS count FROM beds GROUP BY status');
-  const byStatus = Object.fromEntries(rows.map((r) => [r.status, r.count]));
-  const total = rows.reduce((sum, r) => sum + r.count, 0);
+  const { rows: bedRows } = await query('SELECT status, COUNT(*)::int AS count FROM beds GROUP BY status');
+  const byStatus = Object.fromEntries(bedRows.map((r) => [r.status, r.count]));
+  const total = bedRows.reduce((sum, r) => sum + r.count, 0);
+  const { rows: wardRows } = await query('SELECT COUNT(*)::int AS count FROM wards');
   return {
     total,
+    totalWards: wardRows[0].count,
     vacant: byStatus.Vacant ?? 0,
     occupied: byStatus.Occupied ?? 0
   };

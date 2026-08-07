@@ -8,6 +8,7 @@
  * DELETE /wards/:id             — delete a ward (must have no beds)
  * POST   /wards/:id/beds        — add a bed to a ward
  * GET    /beds/:id              — get a single bed (with patient info)
+ * DELETE /beds/:id              — delete a vacant bed
  * POST   /beds/:id/assign       — assign a patient to a vacant bed
  * POST   /beds/:id/vacate       — release an occupied bed
  * GET    /stats                 — aggregate stats for the dashboard
@@ -61,6 +62,13 @@ bedManagementRouter.get(
   '/beds/:id',
   validate({ params: idParamSchema }),
   bedController.getBed
+);
+
+bedManagementRouter.delete(
+  '/beds/:id',
+  requireRole(...WRITE_ROLES),
+  validate({ params: idParamSchema }),
+  bedController.deleteBed
 );
 
 bedManagementRouter.post(

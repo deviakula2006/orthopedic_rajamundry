@@ -77,6 +77,19 @@ export async function countBedsInWard(wardId) {
 }
 
 /**
+ * Delete a single bed by its UUID.
+ * Caller must ensure the bed is not occupied before calling.
+ * Returns the deleted row's id, or null if not found.
+ */
+export async function deleteBed(bedId) {
+  const { rows } = await query(
+    `DELETE FROM beds WHERE id = $1 RETURNING id, bed_number, ward_id`,
+    [bedId]
+  );
+  return rows[0] ?? null;
+}
+
+/**
  * Insert a new ward row.
  */
 export async function createWard({ name, dailyCharge }) {

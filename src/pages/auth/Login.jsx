@@ -9,9 +9,9 @@ const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('Admin@123');
-  const [role, setRole] = useState('Admin');
+  const [username, setUsername] = useState('');
+const [password, setPassword] = useState('');
+ // or '' if you want the user to select
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -24,7 +24,7 @@ const Login = () => {
   setIsSubmitting(true);
 
   try {
-    const result = await login(username, password, role);
+    const result = await login(username, password);
 
     if (!result.success) {
       setError(result.message);
@@ -56,11 +56,7 @@ const Login = () => {
   }
 };
 
-  const handleQuickLogin = (u, p, r) => {
-    setUsername(u);
-    setPassword(p);
-    setRole(r);
-  };
+  
 
   return (
     <div className="flex min-h-screen items-stretch justify-center bg-slate-50">
@@ -93,9 +89,7 @@ const Login = () => {
               <h2 className="text-2xl font-bold tracking-tight text-slate-800">
                 Sign in to your account
               </h2>
-              <p className="mt-1.5 text-sm font-semibold text-slate-400">
-                Select your administrative role and enter credentials
-              </p>
+             
             </div>
 
             {error && (
@@ -110,21 +104,7 @@ const Login = () => {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Role Dropdown */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                  Role
-                </label>
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-hospital-500 transition-all cursor-pointer"
-                >
-                  <option value="Admin">Admin (Full Access)</option>
-                  <option value="Receptionist">Receptionist (Limited Access)</option>
-                  <option value="Doctor">Doctor (Patient Care Only)</option>
-                </select>
-              </div>
+             
 
               {/* Username Input */}
               <div>
@@ -207,41 +187,7 @@ const Login = () => {
             </form>
 
             {/* Quick Testing Login Controls */}
-<div className="mt-6 border-t pt-4">
-  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
-    Quick Role Tester
-  </span>
 
-  <div className="flex flex-wrap gap-2">
-    <button
-      type="button"
-      onClick={() =>
-        handleQuickLogin('admin', 'Admin@123', 'Admin')
-      }
-      className="rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 hover:border-slate-300 py-1.5 px-3 text-xs font-bold text-slate-700 transition-all cursor-pointer"
-    >
-      Admin Login
-    </button>
-
-    <button
-      type="button"
-      disabled
-      title="Create a Receptionist login account from the Admin dashboard first"
-      className="rounded-lg border border-slate-200 bg-slate-100 py-1.5 px-3 text-xs font-bold text-slate-400 cursor-not-allowed"
-    >
-      Receptionist Login
-    </button>
-
-    <button
-      type="button"
-      disabled
-      title="Create a Doctor login account from the Admin dashboard first"
-      className="rounded-lg border border-slate-200 bg-slate-100 py-1.5 px-3 text-xs font-bold text-slate-400 cursor-not-allowed"
-    >
-      Doctor Login
-    </button>
-  </div>
-</div>
           </motion.div>
         </div>
 

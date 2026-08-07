@@ -42,6 +42,7 @@ const BedManagement = () => {
   const [bedDetailOpen, setBedDetailOpen] = useState(false);
   const [vacateConfirmOpen, setVacateConfirmOpen] = useState(false);
   const [deleteWardTarget, setDeleteWardTarget] = useState(null); // { id, name }
+  const [deleteBedTarget, setDeleteBedTarget] = useState(null);   // { id, bedNumber, wardName }
   const [vacating, setVacating] = useState(false);
 
   // ---------------------------------------------------------------
@@ -108,6 +109,25 @@ const BedManagement = () => {
       setVacateConfirmOpen(false);
     } finally {
       setVacating(false);
+    }
+  };
+
+  // ---------------------------------------------------------------
+  // Delete bed handler
+  // ---------------------------------------------------------------
+  const handleDeleteBedConfirm = async () => {
+    if (!deleteBedTarget) return;
+    try {
+      await apiClient.delete(`/bed-management/beds/${deleteBedTarget.id}`);
+      setDeleteBedTarget(null);
+      await fetchWards();
+    } catch (err) {
+      setError(
+        err.response?.data?.error?.message ||
+        err.response?.data?.message ||
+        'Failed to delete bed'
+      );
+      setDeleteBedTarget(null);
     }
   };
 
@@ -363,8 +383,23 @@ const BedManagement = () => {
                             key={bed.id}
                             type="button"
                             onClick={() => handleBedClick(bed, ward)}
-                            className={`group flex flex-col items-start justify-between p-4 rounded-2xl border text-left transition-all cursor-pointer h-32 ${style.card}`}
+                            className={`group relative flex flex-col items-start justify-between p-4 rounded-2xl border text-left transition-all cursor-pointer h-32 ${style.card}`}
                           >
+                            {/* Delete bed button — only shown on hover for vacant beds */}
+                            {bed.status === 'Vacant' && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteBedTarget({ id: bed.id, bedNumber: bed.bedNumber, wardName: ward.name });
+                                }}
+                                title="Delete bed"
+                                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 flex h-6 w-6 items-center justify-center rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 border border-slate-200 transition-all cursor-pointer z-10"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            )}
+
                             {/* Top row */}
                             <div className="flex w-full items-start justify-between">
                               <span className={`h-2 w-2 rounded-full mt-0.5 ${style.dot}`} />
@@ -521,6 +556,17 @@ const BedManagement = () => {
         title="Vacate Bed"
         message={`Are you sure you want to discharge ${selectedBed?.patient?.name ?? 'the patient'} from Bed ${selectedBed?.bedNumber}? The bed will be marked Vacant immediately.`}
         confirmText={vacating ? 'Vacating…' : 'Yes, Vacate'}
+        type="danger"
+      />
+
+      {/* Delete bed confirmation */}
+      <ConfirmationModal
+        isOpen={Boolean(deleteBedTarget)}
+        onClose={() => setDeleteBedTarget(null)}
+        onConfirm={handleDeleteBedConfirm}
+        title="Delete Bed"
+        message={`Are you sure you want to permanently delete Bed "${deleteBedTarget?.bedNumber}" from ward "${deleteBedTarget?.wardName}"? This action cannot be undone.`}
+        confirmText="Delete"
         type="danger"
       />
 

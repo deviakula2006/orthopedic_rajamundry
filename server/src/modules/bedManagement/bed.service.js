@@ -114,6 +114,33 @@ export async function createBed(wardId, data, actor) {
 }
 
 /**
+ * Delete a bed (only if it is Vacant).
+ * @param {string} bedId
+ * @param {{ id: string, name: string }} actor
+ */
+export async function deleteBed(bedId, actor) {
+  const bed = await bedRepository.findBedById(bedId);
+  if (!bed) throw ApiError.notFound('Bed not found');
+
+  if (bed.status === 'Occupied') {
+    throw ApiError.conflict(
+      `Bed "${bed.bed_number}" is currently occupied. Vacate it before deleting.`
+    );
+  }
+
+  await bedRepository.deleteBed(bedId);
+
+  await logActivity({
+    userId: actor.id,
+    actorName: actor.name,
+    action: `Deleted bed "${bed.bed_number}" from ward "${bed.ward_name}"`,
+    activityType: 'bed',
+    entityType: 'bed',
+    entityId: bedId
+  });
+}
+
+/**
  * Get a single bed by UUID.
  * @param {string} bedId
  */

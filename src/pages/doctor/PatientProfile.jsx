@@ -48,6 +48,7 @@ const PatientProfile = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [patientData, setPatientData] = useState(null);
+  const [patientBed, setPatientBed] = useState(null); // { bedNumber, wardName } | null
 
   // Expandable visits timeline state
   const [expandedVisits, setExpandedVisits] = useState({});
@@ -71,11 +72,27 @@ const PatientProfile = () => {
     // 2. Fetch live visit history from PostgreSQL REST API
     const fetchHistoryPromise = fetchVisitHistory(patientId, user?.doctorId);
 
-    Promise.all([fetchPatientPromise, fetchHistoryPromise])
-      .then(([apiPatient, history]) => {
+    // 3. Fetch bed info for this patient (if admitted)
+    const fetchBedPromise = apiClient
+      .get('/bed-management/wards')
+      .then((res) => {
+        const wards = res.data?.data ?? [];
+        for (const ward of wards) {
+          const bed = (ward.beds ?? []).find(
+            (b) => b.patient?.id === patientId && b.status === 'Occupied'
+          );
+          if (bed) return { bedNumber: bed.bedNumber, wardName: ward.name };
+        }
+        return null;
+      })
+      .catch(() => null);
+
+    Promise.all([fetchPatientPromise, fetchHistoryPromise, fetchBedPromise])
+      .then(([apiPatient, history, bedInfo]) => {
         if (apiPatient) {
           setPatientData(apiPatient);
         }
+        setPatientBed(bedInfo);
         if (history && Array.isArray(history)) {
           setLiveVisits(history);
           if (history.length > 0) {
@@ -209,8 +226,7 @@ const PatientProfile = () => {
     }
   };
 
-  // Check if patient occupies a bed
-  const patientBed = beds.find((b) => b.patientId === patientId);
+  // patientBed is fetched via API in loadPatientProfile above
 
   return (
     <div className="space-y-6">
@@ -283,7 +299,9 @@ const PatientProfile = () => {
           <div>
             <span className="text-[9px] font-black text-blue-300 uppercase tracking-widest block">Admission Status</span>
             <span className="text-white font-extrabold block mt-1">
-              {patientBed ? `Admitted (${patientBed.ward} - Bed ${patientBed.bedNo})` : 'Outpatient / Not Admitted'}
+              {patientBed
+                ? `Admitted ( ${patientBed.wardName} — Bed ${patientBed.bedNumber})`
+                : 'Outpatient / Not Admitted'}
             </span>
           </div>
         </div>

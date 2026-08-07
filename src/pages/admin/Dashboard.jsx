@@ -100,7 +100,9 @@ const Dashboard = () => {
   const activeDoctorsCount = dashboardSummary?.activeDoctors ?? 0;
   const activeReceptionistsCount = dashboardSummary?.activeReceptionists ?? 0;
   const totalBedsCount = dashboardSummary?.beds?.total ?? 0;
-  const availableBedsCount = dashboardSummary?.beds?.available ?? 0;
+  const availableBedsCount = dashboardSummary?.beds?.vacant ?? 0;
+  const occupiedBedsCount = dashboardSummary?.beds?.occupied ?? 0;
+  const totalWardsCount = dashboardSummary?.beds?.totalWards ?? 0;
 
   // Chart Data: dynamic trend based on last 7 days of actual appointments and revenue
   const trendData = dashboardSummary?.appointmentsTrend ?? [];
@@ -355,7 +357,7 @@ const Dashboard = () => {
                 <Bed className="h-5 w-5" />
               </div>
               <div>
-                <span className="text-xs font-bold text-slate-400 block leading-none">Available Beds</span>
+                <span className="text-xs font-bold text-slate-400 block leading-none">Vacant Beds</span>
                 <span className="text-sm font-extrabold text-slate-800">{availableBedsCount} Vacant</span>
               </div>
             </div>

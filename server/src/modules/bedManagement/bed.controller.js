@@ -37,6 +37,11 @@ export const createBed = asyncHandler(async (req, res) => {
   sendSuccess(res, { statusCode: 201, data: bed });
 });
 
+export const deleteBed = asyncHandler(async (req, res) => {
+  await bedService.deleteBed(req.params.id, req.user);
+  sendSuccess(res, { data: null });
+});
+
 export const getBed = asyncHandler(async (req, res) => {
   const bed = await bedService.getBed(req.params.id);
   sendSuccess(res, { data: bed });
