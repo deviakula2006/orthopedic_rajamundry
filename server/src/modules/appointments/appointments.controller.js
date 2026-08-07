@@ -36,6 +36,6 @@ export const updateStatus = asyncHandler(async (req, res) => {
 });
 
 export const remove = asyncHandler(async (req, res) => {
-  const appointment = await appointmentsService.cancelAppointment(req.params.id, req.user);
-  sendSuccess(res, { data: appointment });
+  const result = await appointmentsService.deleteAppointment(req.params.id, req.user);
+  sendSuccess(res, { message: 'Appointment permanently deleted', data: result });
 });

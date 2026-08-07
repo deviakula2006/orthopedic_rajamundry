@@ -32,11 +32,11 @@ export async function getBedOccupancy() {
   const total = rows.reduce((sum, r) => sum + r.count, 0);
   return {
     total,
-    available: byStatus.Available ?? 0,
-    occupied: byStatus.Occupied ?? 0,
-    maintenance: byStatus.Maintenance ?? 0
+    vacant: byStatus.Vacant ?? 0,
+    occupied: byStatus.Occupied ?? 0
   };
 }
+
 
 export async function getRevenueToday() {
   const { rows } = await query(

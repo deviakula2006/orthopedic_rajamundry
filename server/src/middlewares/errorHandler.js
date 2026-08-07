@@ -11,9 +11,18 @@ const PG_ERROR_MAP = {
   '22P02': () => ApiError.badRequest('Malformed input value')
 };
 
+// function normalizeError(err) {
+//   if (err instanceof ApiError) return err;
+//   if (err.code && PG_ERROR_MAP[err.code]) return PG_ERROR_MAP[err.code]();
+//   return ApiError.internal();
+// }
 function normalizeError(err) {
+  console.log("PG ERROR:", err);
+
   if (err instanceof ApiError) return err;
+
   if (err.code && PG_ERROR_MAP[err.code]) return PG_ERROR_MAP[err.code]();
+
   return ApiError.internal();
 }
 

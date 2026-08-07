@@ -32,9 +32,7 @@ const PatientProfile = () => {
   const {
     patients,
     appointments,
-    beds,
     updateAppointmentStatus,
-    releaseBed,
     showToast,
     fetchVisitHistory,
     completeConsultation
@@ -191,10 +189,7 @@ const PatientProfile = () => {
   const handleMarkCompleted = async () => {
     if (activeApt) {
       await completeConsultation(patientId, {});
-      const occupiedBed = beds.find((b) => b.patientId === patientId || b.patientId === patient.id);
-      if (occupiedBed) {
-        releaseBed(occupiedBed.bedNo);
-      }
+      // Bed vacate is managed through the Bed Management page
     }
     setCompleteOpen(false);
     navigate('/doctor/dashboard');

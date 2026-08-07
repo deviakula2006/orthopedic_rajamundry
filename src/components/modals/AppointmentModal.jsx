@@ -123,29 +123,16 @@ const AppointmentModal = ({ isOpen, onClose, appointment = null, initialPatientI
           </div>
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-              Scheduled Time Slot
+              Scheduled Time (e.g. 10:00 AM)
             </label>
-            <select
+            <input
+              type="text"
+              required
               value={time}
               onChange={(e) => setTime(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-hospital-500 transition-all cursor-pointer"
-            >
-              <option value="09:00 AM">09:00 AM</option>
-              <option value="09:30 AM">09:30 AM</option>
-              <option value="10:00 AM">10:00 AM</option>
-              <option value="10:30 AM">10:30 AM</option>
-              <option value="11:00 AM">11:00 AM</option>
-              <option value="11:30 AM">11:30 AM</option>
-              <option value="12:00 PM">12:00 PM</option>
-              <option value="12:30 PM">12:30 PM</option>
-              <option value="02:00 PM">02:00 PM</option>
-              <option value="02:30 PM">02:30 PM</option>
-              <option value="03:00 PM">03:00 PM</option>
-              <option value="03:30 PM">03:30 PM</option>
-              <option value="04:00 PM">04:00 PM</option>
-              <option value="04:30 PM">04:30 PM</option>
-              <option value="05:00 PM">05:00 PM</option>
-            </select>
+              placeholder="e.g. 10:00 AM, 02:30 PM"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 placeholder-slate-400 focus:border-hospital-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-hospital-500 transition-all"
+            />
           </div>
         </div>
 

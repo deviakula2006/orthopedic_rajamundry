@@ -769,18 +769,7 @@ const adaptAppointment = (row) => ({
   fee: row.fee
 });
 
-const adaptBed = (row) => ({
-  bedNo: row.bedNo,
-  dbId: row.id,
-
-  ward: row.ward?.name,
-  bedType: row.ward?.bedType,
-
-  patientId: row.patient?.code || '',
-  patientName: row.patient?.name || '',
-
-  status: row.status
-});
+// adaptBed removed — bed management is now handled by the BedManagement module directly
 
 const adaptBill = (row) => ({
   invoiceNo: row.invoiceNo,
@@ -846,7 +835,7 @@ export const HospitalProvider = ({ children }) => {
   const [receptionists, setReceptionists] = useState([]);
   const [investigations, setInvestigations] = useState([]);
   const [appointments, setAppointments] = useState([]);
-  const [beds, setBeds] = useState([]);
+  // beds state removed — bed management is self-contained in the BedManagement page
   const [bills, setBills] = useState([]);
   const [activities, setActivities] = useState([]);
   const [hospitalSettings, setHospitalSettings] = useState(null);
@@ -949,7 +938,7 @@ export const HospitalProvider = ({ children }) => {
         receptionistsResponse,
         investigationsResponse,
         appointmentsResponse,
-        bedsResponse,
+
         billsResponse,
         hospitalSettingsResponse
       ] = await Promise.all([
@@ -958,7 +947,7 @@ export const HospitalProvider = ({ children }) => {
         apiClient.get('/receptionists', LIST_ALL),
         apiClient.get('/investigations', LIST_ALL),
         apiClient.get('/appointments', LIST_ALL),
-        apiClient.get('/beds'),
+
         apiClient.get('/bills', LIST_ALL),
         apiClient.get('/hospital-settings')
       ]);
@@ -987,10 +976,6 @@ export const HospitalProvider = ({ children }) => {
         appointmentsResponse.data.data.map(
           adaptAppointment
         )
-      );
-
-      setBeds(
-        bedsResponse.data.data.map(adaptBed)
       );
 
       setBills(
@@ -1027,7 +1012,7 @@ export const HospitalProvider = ({ children }) => {
           setReceptionists([]);
           setInvestigations([]);
           setAppointments([]);
-          setBeds([]);
+
           setBills([]);
           setActivities([]);
           setHospitalSettings(null);
@@ -2121,285 +2106,19 @@ const toggleDoctorStatus = async (code) => {
     }
 
     try {
-      const response = await apiClient.delete(
-        `/appointments/${target.dbId}`
-      );
-
-      const saved = adaptAppointment(
-        response.data.data
-      );
-
-      setAppointments((prev) =>
-        prev.map((appointment) =>
-          appointment.id === code
-            ? saved
-            : appointment
-        )
-      );
-
-      showToast(
-        'Appointment cancelled.',
-        'warning'
-      );
-
+      await apiClient.delete(`/appointments/${target.dbId}`);
+      setAppointments((prev) => prev.filter((a) => a.id !== code && a.dbId !== target.dbId));
+      showToast('Appointment record permanently deleted.', 'warning');
       refreshActivities();
-    } catch (error) {
-      reportError(
-        error,
-        'Failed to cancel appointment'
-      );
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Failed to delete appointment', 'error');
     }
   };
 
-  /* ==========================================================================
-     BEDS
-  ========================================================================== */
+  // assignBed removed — use /api/bed-management/beds/:id/assign directly
 
-  const assignBed = async (
-    bedNo,
-    patientCode
-  ) => {
-    const bed = beds.find(
-      (item) => item.bedNo === bedNo
-    );
+  // transferBed removed — use /api/bed-management/beds/:id/vacate + assign directly
 
-    const patient = patients.find(
-      (item) => item.id === patientCode
-    );
-
-    if (!bed || !patient) {
-      showToast(
-        'Patient or bed not found!',
-        'error'
-      );
-
-      return undefined;
-    }
-
-    try {
-      const response = await apiClient.post(
-        `/beds/${bed.dbId}/assign`,
-        {
-          patientId: patient.dbId
-        }
-      );
-
-      const saved = adaptBed(
-        response.data.data
-      );
-
-      setBeds((prev) =>
-        prev.map((item) =>
-          item.bedNo === bedNo
-            ? saved
-            : item
-        )
-      );
-
-      showToast(
-        `Bed ${bedNo} assigned to ${saved.patientName}`
-      );
-
-      refreshActivities();
-
-      return saved;
-    } catch (error) {
-      reportError(
-        error,
-        'Failed to assign bed'
-      );
-
-      return undefined;
-    }
-  };
-
-  /*
-   Current backend has no transfer-bed endpoint.
-
-   Keep the completed base frontend workflow.
-
-   IMPORTANT:
-   This operation is currently frontend/local state only.
-  */
-
-  const transferBed = async (
-    bedNo,
-    newBedNo
-  ) => {
-    const sourceBed = beds.find(
-      (bed) => bed.bedNo === bedNo
-    );
-
-    const targetBed = beds.find(
-      (bed) => bed.bedNo === newBedNo
-    );
-
-    if (
-      !sourceBed ||
-      sourceBed.status !== 'Occupied'
-    ) {
-      showToast(
-        'Source bed is not occupied!',
-        'error'
-      );
-
-      return false;
-    }
-
-    if (
-      !targetBed ||
-      targetBed.status !== 'Available'
-    ) {
-      showToast(
-        'Target bed is not available!',
-        'error'
-      );
-
-      return false;
-    }
-
-    /*
-      Safest possible behaviour with existing backend endpoints:
-
-      1. assign target bed to same patient
-      2. release source bed
-
-      If target assignment fails, source remains occupied.
-    */
-
-    try {
-      const patient = patients.find(
-        (item) =>
-          item.id === sourceBed.patientId
-      );
-
-      if (!patient) {
-        showToast(
-          'Patient record not found.',
-          'error'
-        );
-
-        return false;
-      }
-
-      const assignResponse =
-        await apiClient.post(
-          `/beds/${targetBed.dbId}/assign`,
-          {
-            patientId: patient.dbId
-          }
-        );
-
-      const assignedTarget = adaptBed(
-        assignResponse.data.data
-      );
-
-      try {
-        const releaseResponse =
-          await apiClient.post(
-            `/beds/${sourceBed.dbId}/release`
-          );
-
-        const releasedSource = adaptBed(
-          releaseResponse.data.data
-        );
-
-        setBeds((prev) =>
-          prev.map((bed) => {
-            if (bed.bedNo === bedNo) {
-              return releasedSource;
-            }
-
-            if (bed.bedNo === newBedNo) {
-              return assignedTarget;
-            }
-
-            return bed;
-          })
-        );
-
-        showToast(
-          `Patient transferred from Bed ${bedNo} to Bed ${newBedNo} successfully!`
-        );
-
-        refreshActivities();
-
-        return true;
-      } catch (releaseError) {
-        /*
-          Target assignment succeeded but source release failed.
-
-          Refresh backend state instead of pretending transfer succeeded.
-        */
-
-        reportError(
-          releaseError,
-          'Target bed was assigned, but source bed release failed. Refreshing bed data.'
-        );
-
-        const bedsResponse =
-          await apiClient.get('/beds');
-
-        setBeds(
-          bedsResponse.data.data.map(adaptBed)
-        );
-
-        refreshActivities();
-
-        return false;
-      }
-    } catch (error) {
-      reportError(
-        error,
-        'Failed to transfer patient'
-      );
-
-      return false;
-    }
-  };
-
-  const releaseBed = async (bedNo) => {
-    const bed = beds.find(
-      (item) => item.bedNo === bedNo
-    );
-
-    if (!bed) {
-      return undefined;
-    }
-
-    try {
-      const response = await apiClient.post(
-        `/beds/${bed.dbId}/release`
-      );
-
-      const saved = adaptBed(
-        response.data.data
-      );
-
-      setBeds((prev) =>
-        prev.map((item) =>
-          item.bedNo === bedNo
-            ? saved
-            : item
-        )
-      );
-
-      showToast(
-        `Bed ${bedNo} is now vacant.`
-      );
-
-      refreshActivities();
-
-      return saved;
-    } catch (error) {
-      reportError(
-        error,
-        'Failed to release bed'
-      );
-
-      return undefined;
-    }
-  };
 
   /* ==========================================================================
      VISIT HISTORY / EMR HELPERS
@@ -2808,7 +2527,6 @@ const toggleDoctorStatus = async (code) => {
     receptionists,
     investigations,
     appointments,
-    beds,
     bills,
     activities,
     hospitalSettings,
@@ -2839,10 +2557,6 @@ const toggleDoctorStatus = async (code) => {
     addInvestigation,
     editInvestigation,
     deleteInvestigation,
-
-    assignBed,
-    transferBed,
-    releaseBed,
 
     addVitals,
     orderInvestigation,

@@ -66,7 +66,7 @@ describe('Appointments API', () => {
     expect(res.body.data.status).toBe('Completed');
   });
 
-  it('cancels via DELETE instead of removing the row', async () => {
+  it('permanently deletes appointment via DELETE /:id', async () => {
     const created = await request(app)
       .post('/api/appointments')
       .set('Authorization', `Bearer ${token}`)
@@ -75,11 +75,10 @@ describe('Appointments API', () => {
 
     const del = await request(app).delete(`/api/appointments/${id}`).set('Authorization', `Bearer ${token}`);
     expect(del.status).toBe(200);
-    expect(del.body.data.status).toBe('Cancelled');
+    expect(del.body.data.deleted).toBe(true);
 
-    // Still fetchable — cancellation is a status, not a deletion.
+    // No longer fetchable — permanently removed from database
     const read = await request(app).get(`/api/appointments/${id}`).set('Authorization', `Bearer ${token}`);
-    expect(read.status).toBe(200);
-    expect(read.body.data.status).toBe('Cancelled');
+    expect(read.status).toBe(404);
   });
 });
