@@ -1,128 +1,167 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Menu, ChevronDown, User, LogOut } from 'lucide-react';
+import { Menu, ChevronDown, User, LogOut, Settings } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+
+const PAGE_TITLES = {
+  dashboard:     { title: 'Dashboard',           sub: 'Hospital overview & analytics' },
+  patients:      { title: 'Patients',            sub: 'Patient directory & records' },
+  doctors:       { title: 'Doctors',             sub: 'Medical staff directory' },
+  receptionists: { title: 'Receptionists',       sub: 'Front desk staff' },
+  appointments:  { title: 'Appointments',        sub: 'Schedule & manage appointments' },
+  investigations:{ title: 'Investigations',      sub: 'Lab orders & results' },
+  billing:       { title: 'Billing & Payments',  sub: 'Invoices, payments & reports' },
+  beds:          { title: 'Bed Management',      sub: 'Ward & bed allocation' },
+  reports:       { title: 'Reports & Analytics', sub: 'Operational reports' },
+  settings:      { title: 'Settings',            sub: 'System configuration' },
+};
 
 const Topbar = ({ toggleSidebar }) => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef(null);
 
-  // Map pathname to readable titles
-  const getPageTitle = () => {
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const getPage = () => {
     const path = location.pathname;
-    if (path.includes('dashboard')) return 'Dashboard Analytics';
-    if (path.includes('patients')) return 'Patients Directory';
-    if (path.includes('doctors')) return 'Doctors Staff';
-    if (path.includes('receptionists')) return 'Receptionist Staff';
-    if (path.includes('appointments')) return 'Appointment Scheduler';
-    if (path.includes('investigations')) return 'Laboratory Investigations';
-    if (path.includes('billing')) return 'Billing & Invoices';
-    if (path.includes('beds')) return 'Bed & Ward Management';
-    if (path.includes('reports')) return 'Reports & Analytics';
-    if (path.includes('settings')) return 'System Settings';
-    return 'Patient Info';
+    for (const key of Object.keys(PAGE_TITLES)) {
+      if (path.includes(key)) return PAGE_TITLES[key];
+    }
+    return { title: 'Patient Info', sub: 'Consultation workspace' };
   };
 
+  const page = getPage();
+
   const handleLogout = () => {
+    setShowMenu(false);
     logout();
     navigate('/login');
   };
 
+  const initials = user?.name
+    ? user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+    : 'U';
+
   return (
-    <header className="sticky top-0 z-30 flex h-20 w-full items-center justify-between border-b border-slate-200/80 bg-white/80 px-6 backdrop-blur-md">
-      {/* Left section: Toggle + Page title */}
-      <div className="flex items-center gap-4">
+    <header
+      className="sticky top-0 z-30 flex h-16 w-full shrink-0 items-center justify-between px-6"
+      style={{
+        background: 'rgba(255,255,255,0.92)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        borderBottom: '1px solid #e8eaed',
+        boxShadow: '0 1px 0 0 #f1f3f4',
+      }}
+    >
+      {/* ─── Left ───────────────────────────────────── */}
+      <div className="flex items-center gap-3">
+        {/* Mobile hamburger */}
         <button
           onClick={toggleSidebar}
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 lg:hidden"
+          className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-gray-100 transition-colors lg:hidden"
         >
-          <Menu className="h-5 w-5" />
+          <Menu className="h-4.5 w-4.5" style={{ color: '#6b7280' }} />
         </button>
+
+        {/* Page title */}
         <div>
-          <h2 className="text-xl font-bold text-slate-800 tracking-tight">{getPageTitle()}</h2>
-          <p className="hidden text-xs font-medium text-slate-400 sm:block">
-            Rajahmundry Orthopedic Hospital Management System
+          <h1
+            className="text-[15px] leading-none"
+            style={{ fontWeight: 700, color: '#0f172a', letterSpacing: '-0.01em' }}
+          >
+            {page.title}
+          </h1>
+          <p className="mt-0.5 text-[11px]" style={{ color: '#374151', fontWeight: 500 }}>
+            {page.sub}
           </p>
         </div>
       </div>
 
-      {/* Right section: Search, Notifications, Profile */}
-      <div className="flex items-center gap-4">
-        {/* Search bar */}
-       
-
-        {/* Notification bell */}
-        
-
+      {/* ─── Right ──────────────────────────────────── */}
+      <div className="flex items-center gap-2" ref={menuRef}>
         {/* Divider */}
-        <div className="h-6 w-px bg-slate-200"></div>
+        <div style={{ width: 1, height: 20, background: '#e8eaed', margin: '0 4px' }} />
 
-        {/* User Profile dropdown */}
-        <div className="relative">
-          <button
-            onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-1.5 pr-3 hover:bg-slate-50 transition-colors"
+        {/* Profile button */}
+        <button
+          onClick={() => setShowMenu(v => !v)}
+          className="flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors"
+          style={{ border: '1px solid #e8eaed', background: '#ffffff' }}
+          onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
+          onMouseLeave={e => e.currentTarget.style.background = '#ffffff'}
+        >
+          {/* Avatar */}
+          <div
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[11px] text-white"
+            style={{ background: 'linear-gradient(135deg, #2278e8, #26a1ae)', fontWeight: 700 }}
           >
-            <img
-              src={user?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'}
-              alt={user?.name}
-              className="h-8 w-8 rounded-lg object-cover"
-            />
-            <div className="hidden text-left sm:block">
-              <p className="text-xs font-semibold text-slate-700 leading-none">{user?.name}</p>
-              <span className="text-[10px] font-medium text-slate-400">{user?.role}</span>
-            </div>
-            <ChevronDown className="h-4 w-4 text-slate-400" />
-          </button>
+            {user?.avatar
+              ? <img src={user.avatar} alt={user.name} className="h-7 w-7 rounded-md object-cover" />
+              : initials
+            }
+          </div>
+          <div className="hidden text-left sm:block">
+            <p className="text-[12px] leading-none" style={{ fontWeight: 600, color: '#111827' }}>
+              {user?.name}
+            </p>
+            <p className="mt-0.5 text-[10px]" style={{ color: '#374151' }}>{user?.role}</p>
+          </div>
+          <ChevronDown
+            className="h-3.5 w-3.5 transition-transform"
+            style={{ color: '#9ca3af', transform: showMenu ? 'rotate(180deg)' : 'rotate(0deg)' }}
+          />
+        </button>
 
-          {/* Profile Dropdown Menu */}
-          {showProfileMenu && (
-            <>
-              <div
-                className="fixed inset-0 z-10"
-                onClick={() => setShowProfileMenu(false)}
-              ></div>
-              <div className="absolute right-0 mt-2 w-56 origin-top-right rounded-xl border border-slate-100 bg-white p-2 shadow-premium ring-1 ring-black/5 z-20">
-                <div className="px-3 py-2 border-b border-slate-100">
-                  <p className="text-xs font-medium text-slate-400">Signed in as</p>
-                  <p className="text-sm font-semibold text-slate-800 truncate">{user?.email}</p>
-                </div>
-                <div className="py-1">
-                  <button
-                    onClick={() => {
-                      setShowProfileMenu(false);
-                      navigate('/admin/settings');
-                    }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-600 rounded-lg hover:bg-slate-50"
-                  >
-                    <User className="h-4 w-4" />
-                    <span>My Profile</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowProfileMenu(false);
-                      navigate('/admin/settings');
-                    }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-600 rounded-lg hover:bg-slate-50"
-                  >
-                   
-                  </button>
-                </div>
-                <div className="border-t border-slate-100 py-1">
-                  <button
-                    onClick={handleLogout}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-sm text-red-500 rounded-lg hover:bg-red-50"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    <span>Sign Out</span>
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+        {/* Dropdown */}
+        {showMenu && (
+          <div
+            className="dropdown-menu absolute right-6 top-14"
+            style={{ minWidth: '13rem', zIndex: 100 }}
+          >
+            {/* Identity */}
+            <div className="px-3 py-2.5" style={{ borderBottom: '1px solid #f1f3f4' }}>
+              <p className="text-[10px]" style={{ color: '#374151', fontWeight: 500 }}>Signed in as</p>
+              <p className="mt-0.5 text-[12px] truncate" style={{ fontWeight: 700, color: '#111827' }}>{user?.email}</p>
+            </div>
+
+            {/* Actions */}
+            <div className="p-1">
+              <button
+                className="dropdown-item"
+                onClick={() => { setShowMenu(false); navigate('/admin/settings'); }}
+              >
+                <User className="h-3.5 w-3.5" />
+                My Profile
+              </button>
+              <button
+                className="dropdown-item"
+                onClick={() => { setShowMenu(false); navigate('/admin/settings'); }}
+              >
+                <Settings className="h-3.5 w-3.5" />
+                Settings
+              </button>
+            </div>
+
+            <div className="p-1" style={{ borderTop: '1px solid #f1f3f4' }}>
+              <button className="dropdown-item danger" onClick={handleLogout}>
+                <LogOut className="h-3.5 w-3.5" />
+                Sign Out
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </header>
   );

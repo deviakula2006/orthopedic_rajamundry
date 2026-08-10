@@ -145,19 +145,24 @@ const handleConfirmDelete = async () => {
 
   const columns = [
     {
-      key: 'id',
-      header: 'Staff ID',
-      sortable: true,
-      render: (row) => <span className="font-bold text-slate-500">{row.id}</span>
+      key: 'id', header: 'Staff ID', sortable: true,
+      render: (row) => (
+        <span style={{ fontFamily: 'monospace', fontSize: '0.75rem', fontWeight: 700, color: '#0e7490', background: '#ecfeff', border: '1px solid #a5f3fc', padding: '2px 8px', borderRadius: 4 }}>
+          {row.id}
+        </span>
+      )
     },
     {
-      key: 'name',
-      header: 'Receptionist Name',
-      sortable: true,
+      key: 'name', header: 'Receptionist Name', sortable: true,
       render: (row) => (
-        <div>
-          <span className="font-bold text-slate-800 block">{row.name}</span>
-          <span className="text-[10px] font-semibold text-slate-400 block">{row.email}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 30, height: 30, borderRadius: 8, background: 'linear-gradient(135deg,#0e7490,#0284c7)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '0.6875rem', fontWeight: 700, flexShrink: 0 }}>
+            {row.name?.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase()}
+          </div>
+          <div>
+            <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.8125rem' }}>{row.name}</div>
+            <div style={{ fontWeight: 500, color: '#374151', fontSize: '0.7rem', marginTop: 1 }}>{row.email}</div>
+          </div>
         </div>
       )
     },
@@ -166,12 +171,11 @@ const handleConfirmDelete = async () => {
       header: 'Phone Number'
     },
     {
-      key: 'shift',
-      header: 'Duty Shift',
+      key: 'shift', header: 'Duty Shift',
       render: (row) => (
-        <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold">
-          <Clock className="h-3.5 w-3.5 text-slate-400" />
-          <span>{row.shift}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <Clock style={{ width: 12, height: 12, color: '#374151', flexShrink: 0 }} />
+          <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#0f172a' }}>{row.shift}</span>
         </div>
       )
     },
@@ -202,51 +206,43 @@ const handleConfirmDelete = async () => {
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-end">
-        
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+
+      {/* Page Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '1rem', borderBottom: '1px solid #e8eaed' }}>
+        <div>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#0a0f1e', letterSpacing: '-0.01em' }}>Receptionists</h2>
+          <p style={{ fontSize: '0.75rem', fontWeight: 500, color: '#374151', marginTop: 2 }}>
+            {receptionists.length} staff member{receptionists.length !== 1 ? 's' : ''} on roster
+          </p>
+        </div>
         <button
           type="button"
           onClick={handleOpenAdd}
-          className="flex items-center gap-1.5 self-start rounded-xl bg-gradient-to-r from-hospital-500 to-cyanic-500 px-4 py-2.5 text-sm font-bold text-white shadow-premium hover:shadow-premium-hover transition-all focus:outline-none cursor-pointer"
+          style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px', borderRadius: 8, border: 'none', background: '#2278e8', fontSize: '0.8125rem', fontWeight: 600, color: '#fff', cursor: 'pointer', boxShadow: '0 1px 2px rgba(34,120,232,0.3)' }}
         >
-          <Plus className="h-4 w-4" />
-          <span>Add Receptionist</span>
+          <Plus style={{ width: 14, height: 14 }} />
+          Add Receptionist
         </button>
       </div>
 
-      {/* Main Table */}
+      {/* Table */}
+      <div className="card" style={{ padding: '1.25rem' }}>
       <Table
         columns={columns}
         data={receptionists}
-        searchPlaceholder="Search staff by name or email..."
-        searchKey="name"
-        emptyMessage="No receptionists registered in roster"
-        itemsPerPage={6}
-        actions={(row) => (
-          <ThreeDotMenu
-            options={[
-              {
-                label: 'View Details',
-                icon: Eye,
-                onClick: () => handleOpenView(row)
-              },
-              {
-                label: 'Edit Details',
-                icon: Edit,
-                onClick: () => handleOpenEdit(row)
-              },
-              {
-                label: 'Remove Access',
-                icon: Trash2,
-                destructive: true,
-                onClick: () => triggerDelete(row.id)
-              }
-            ]}
-          />
-        )}
-      />
+          itemsPerPage={8}
+          actions={(row) => (
+            <ThreeDotMenu
+              options={[
+                { label: 'View Details', icon: Eye,   onClick: () => handleOpenView(row) },
+                { label: 'Edit Details', icon: Edit,  onClick: () => handleOpenEdit(row) },
+                { label: 'Remove',       icon: Trash2, destructive: true, onClick: () => triggerDelete(row.id) },
+              ]}
+            />
+          )}
+        />
+      </div>
 
       {/* Modal: Add Receptionist */}
       <Modal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} title="Register Roster Staff" size="md">

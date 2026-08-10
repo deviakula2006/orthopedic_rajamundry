@@ -150,40 +150,46 @@ const Settings = () => {
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold text-slate-800 tracking-tight">System Settings</h1>
-        <p className="text-xs text-slate-400 font-semibold">Configure administrative accounts, security keys, and hospital contact registries</p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      {/* Page Header */}
+      <div style={{ paddingBottom: '1rem', borderBottom: '1px solid #e8eaed' }}>
+        <h1 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#0a0f1e', letterSpacing: '-0.01em' }}>Settings</h1>
+        <p style={{ fontSize: '0.75rem', fontWeight: 500, color: '#374151', marginTop: 2 }}>Configure admin profile, credentials, and hospital information</p>
       </div>
 
-      <div className="flex flex-col gap-6 lg:flex-row">
-        {/* Navigation Sidebar inside Settings */}
-        <div className="w-full shrink-0 lg:w-64 space-y-1">
+      <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        {/* Tab navigation */}
+        <div style={{ width: 220, display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
           {tabs.map((tab) => {
             const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex w-full items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all border cursor-pointer ${
-                  activeTab === tab.id
-                    ? 'bg-gradient-to-r from-hospital-500 to-cyanic-500 text-white border-transparent shadow-premium'
-                    : 'bg-white text-slate-500 border-slate-200/80 hover:bg-slate-50'
-                }`}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '9px 14px', borderRadius: 8, width: '100%',
+                  fontSize: '0.8125rem', fontWeight: 600, textAlign: 'left',
+                  cursor: 'pointer', transition: 'all 120ms', border: 'none',
+                  background: isActive ? '#2278e8' : 'transparent',
+                  color: isActive ? '#ffffff' : '#111827',
+                }}
+                onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = '#f3f4f6'; }}
+                onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
               >
-                <Icon className="h-4.5 w-4.5" />
-                <span>{tab.name}</span>
+                <Icon style={{ width: 15, height: 15, flexShrink: 0 }} />
+                {tab.name}
               </button>
             );
           })}
         </div>
 
-        {/* Tab panels container */}
-        <div className="flex-1 rounded-2xl border border-slate-200 bg-white p-6 shadow-premium">
+        {/* Content panel */}
+        <div className="card" style={{ flex: 1, minWidth: 0, padding: '1.5rem' }}>
           {activeTab === 'profile' && (
-            <form onSubmit={handleProfileSubmit} className="space-y-5">
-              <h3 className="text-base font-bold text-slate-800 border-b pb-3 mb-4">Modify Admin Profile</h3>
+            <form onSubmit={handleProfileSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <h3 style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #f1f3f4', paddingBottom: '0.75rem' }}>Admin Profile</h3>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
@@ -222,8 +228,8 @@ const Settings = () => {
           )}
 
           {activeTab === 'security' && (
-            <form onSubmit={handlePasswordSubmit} className="space-y-5">
-              <h3 className="text-base font-bold text-slate-800 border-b pb-3 mb-4">Access Credentials & Security</h3>
+            <form onSubmit={handlePasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <h3 style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #f1f3f4', paddingBottom: '0.75rem' }}>Security & Credentials</h3>
 
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Current Password</label>

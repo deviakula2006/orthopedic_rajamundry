@@ -2,224 +2,245 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
-import { HeartPulse, Lock, User, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { HeartPulse, Lock, User, Eye, EyeOff, AlertCircle, ArrowRight } from 'lucide-react';
 import loginBg from '../../assets/login_bg.png';
 
 const Login = () => {
   const { login } = useAuth();
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
 
-  const [username, setUsername] = useState('');
-const [password, setPassword] = useState('');
- // or '' if you want the user to select
-  const [rememberMe, setRememberMe] = useState(true);
+  const [username,     setUsername]     = useState('');
+  const [password,     setPassword]     = useState('');
+  const [rememberMe,   setRememberMe]   = useState(true);
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
+  const [error,        setError]        = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-
-  setError('');
-  setIsSubmitting(true);
-
-  try {
-    const result = await login(username, password);
-
-    if (!result.success) {
-      setError(result.message);
-      return;
+    e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+    try {
+      const result = await login(username, password);
+      if (!result.success) { setError(result.message); return; }
+      const role = result.user.role;
+      if      (role === 'Admin')        navigate('/admin/dashboard');
+      else if (role === 'Receptionist') navigate('/receptionist/dashboard');
+      else if (role === 'Doctor')       navigate('/doctor/dashboard');
+      else                              setError(`Unsupported role: ${role}`);
+    } catch {
+      setError('An unexpected error occurred. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
+  };
 
-    const loggedInRole = result.user.role;
-
-    console.log('Logged-in user:', result.user);
-    console.log('Logged-in role:', loggedInRole);
-
-    if (loggedInRole === 'Admin') {
-      navigate('/admin/dashboard');
-    } else if (loggedInRole === 'Receptionist') {
-      navigate('/receptionist/dashboard');
-    } else if (loggedInRole === 'Doctor') {
-      navigate('/doctor/dashboard');
-    } else {
-      setError(`Unsupported user role: ${loggedInRole}`);
-    }
-  } catch (error) {
-    console.error('Unexpected login error:', error);
-
-    setError(
-      'An unexpected error occurred. Please try again.'
-    );
-  } finally {
-    setIsSubmitting(false);
-  }
-};
-
-  
+  /* ── Input field style helper ── */
+  const inputBase = {
+    width: '100%', height: 42, paddingLeft: 40, paddingRight: 14,
+    borderRadius: 8, border: '1px solid #d1d5db', background: '#f9fafb',
+    fontSize: '0.875rem', fontWeight: 500, color: '#0f172a',
+    outline: 'none', transition: 'all 140ms', fontFamily: 'inherit',
+  };
+  const handleFocus = e => { e.target.style.background = '#fff'; e.target.style.borderColor = '#3898f3'; e.target.style.boxShadow = '0 0 0 3px rgba(56,152,243,0.12)'; };
+  const handleBlur  = e => { e.target.style.background = '#f9fafb'; e.target.style.borderColor = '#d1d5db'; e.target.style.boxShadow = 'none'; };
 
   return (
-    <div className="flex min-h-screen items-stretch justify-center bg-slate-50">
-      {/* Left Column - Branding & Form */}
-      <div className="flex w-full flex-col justify-between px-6 py-8 md:px-12 lg:w-[45%] xl:w-[40%] bg-white relative z-10 shadow-2xl">
-        {/* Logo Branding */}
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-tr from-hospital-500 to-cyanic-400 text-white shadow-premium">
-            <HeartPulse className="h-6 w-6" />
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#f4f6f9' }}>
+
+      {/* ─── Left — Form Panel ───────────────────────── */}
+      <div style={{
+        width: '100%', maxWidth: 480, display: 'flex', flexDirection: 'column',
+        justifyContent: 'space-between', padding: '2.5rem 3rem',
+        background: '#ffffff', boxShadow: '1px 0 0 0 #e8eaed, 4px 0 24px rgba(0,0,0,0.06)',
+        position: 'relative', zIndex: 10,
+      }}>
+
+        {/* Brand */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 9,
+            background: 'linear-gradient(135deg, #2278e8, #26a1ae)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 2px 6px rgba(34,120,232,0.35)',
+          }}>
+            <HeartPulse style={{ width: 18, height: 18, color: '#fff' }} />
           </div>
           <div>
-            <h1 className="text-base font-extrabold tracking-tight text-slate-800 leading-none">
+            <div style={{ fontSize: '0.875rem', fontWeight: 800, color: '#0a0f1e', lineHeight: 1.1 }}>
               RAJAHMUNDRY ORTHOPEDIC
-            </h1>
-            <span className="text-[11px] font-bold text-hospital-600 tracking-wider uppercase">
+            </div>
+            <div style={{ fontSize: '0.625rem', fontWeight: 700, color: '#2278e8', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
               Hospital Management System
-            </span>
+            </div>
           </div>
         </div>
 
-        {/* Center Card */}
-        <div className="my-auto py-8">
+        {/* Form area */}
+        <div>
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="w-full"
+            transition={{ duration: 0.35, ease: 'easeOut' }}
           >
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold tracking-tight text-slate-800">
-                Sign in to your account
-              </h2>
-             
-            </div>
+            {/* Heading */}
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0a0f1e', letterSpacing: '-0.025em', marginBottom: 6 }}>
+              Sign in
+            </h1>
+            <p style={{ fontSize: '0.875rem', fontWeight: 500, color: '#374151', marginBottom: '1.75rem' }}>
+              Enter your credentials to access the dashboard.
+            </p>
 
+            {/* Error */}
             {error && (
               <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="mb-6 flex items-start gap-2.5 rounded-xl border border-red-100 bg-red-50 p-3.5 text-xs font-semibold text-red-700"
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '10px 14px', borderRadius: 8, marginBottom: '1.25rem',
+                  background: '#fff1f2', border: '1px solid #fecdd3',
+                  fontSize: '0.8125rem', fontWeight: 600, color: '#be123c',
+                }}
               >
-                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                <span>{error}</span>
+                <AlertCircle style={{ width: 15, height: 15, flexShrink: 0 }} />
+                {error}
               </motion.div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-             
-
-              {/* Username Input */}
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {/* Username */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#0f172a', marginBottom: 6 }}>
                   Username
                 </label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-4 flex items-center text-slate-400">
-                    <User className="h-4.5 w-4.5" />
-                  </span>
+                <div style={{ position: 'relative' }}>
+                  <User style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, color: '#9ca3af', pointerEvents: 'none' }} />
                   <input
                     type="text"
                     required
                     value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Enter username (e.g., admin)"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-11 pr-4 text-sm font-semibold text-slate-700 placeholder-slate-400 focus:border-hospital-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-hospital-500 transition-all"
+                    onChange={e => setUsername(e.target.value)}
+                    placeholder="e.g. admin"
+                    style={inputBase}
+                    onFocus={handleFocus}
+                    onBlur={handleBlur}
                   />
                 </div>
               </div>
 
-              {/* Password Input */}
+              {/* Password */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#0f172a', marginBottom: 6 }}>
                   Password
                 </label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-4 flex items-center text-slate-400">
-                    <Lock className="h-4.5 w-4.5" />
-                  </span>
+                <div style={{ position: 'relative' }}>
+                  <Lock style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, color: '#9ca3af', pointerEvents: 'none' }} />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={e => setPassword(e.target.value)}
                     placeholder="Enter your password"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-11 pr-11 text-sm font-semibold text-slate-700 placeholder-slate-400 focus:border-hospital-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-hospital-500 transition-all"
+                    style={{ ...inputBase, paddingRight: 40 }}
+                    onFocus={handleFocus}
+                    onBlur={handleBlur}
                   />
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-4 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                    onClick={() => setShowPassword(v => !v)}
+                    style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: 0 }}
                   >
-                    {showPassword ? <EyeOff className="h-4.5 w-4.5" /> : <Eye className="h-4.5 w-4.5" />}
+                    {showPassword ? <EyeOff style={{ width: 15, height: 15 }} /> : <Eye style={{ width: 15, height: 15 }} />}
                   </button>
                 </div>
               </div>
 
-              {/* Remember Me & Forgot Password */}
-              <div className="flex items-center justify-between text-xs font-bold">
-                <label className="flex items-center gap-2 cursor-pointer text-slate-500 hover:text-slate-700 select-none">
+              {/* Remember me */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', fontSize: '0.8125rem', fontWeight: 500, color: '#111827' }}>
                   <input
                     type="checkbox"
                     checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="rounded border-slate-300 text-hospital-500 focus:ring-hospital-500 h-4 w-4"
+                    onChange={e => setRememberMe(e.target.checked)}
+                    style={{ width: 14, height: 14, accentColor: '#2278e8' }}
                   />
                   Remember me
                 </label>
-                <a href="#forgot" className="text-hospital-600 hover:text-hospital-700">
-                  Forgot Password?
+                <a href="#forgot" style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#2278e8', textDecoration: 'none' }}>
+                  Forgot password?
                 </a>
               </div>
 
-              {/* Sign In Button */}
+              {/* Submit */}
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full rounded-xl bg-gradient-to-r from-hospital-500 to-cyanic-500 py-3 text-sm font-bold text-white shadow-premium hover:shadow-premium-hover transition-all focus:outline-none focus:ring-2 focus:ring-hospital-500/50 flex items-center justify-center gap-2 cursor-pointer"
+                style={{
+                  height: 42, borderRadius: 8, border: 'none',
+                  background: isSubmitting ? '#93c5fd' : '#2278e8',
+                  color: '#fff', fontSize: '0.875rem', fontWeight: 700,
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                  transition: 'background 150ms',
+                  boxShadow: '0 1px 2px rgba(34,120,232,0.3)',
+                  marginTop: 4,
+                }}
+                onMouseEnter={e => { if (!isSubmitting) e.currentTarget.style.background = '#1c6dd9'; }}
+                onMouseLeave={e => { if (!isSubmitting) e.currentTarget.style.background = '#2278e8'; }}
               >
                 {isSubmitting ? (
                   <>
-                    <div className="h-4.5 w-4.5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                    <span>Authenticating...</span>
+                    <div style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                    Signing in…
                   </>
                 ) : (
-                  <span>Sign In</span>
+                  <>
+                    Sign In
+                    <ArrowRight style={{ width: 15, height: 15 }} />
+                  </>
                 )}
               </button>
             </form>
-
-            {/* Quick Testing Login Controls */}
-
           </motion.div>
         </div>
 
         {/* Footer */}
-        <div className="text-center text-xs font-medium text-slate-400">
-          &copy; {new Date().getFullYear()} Rajahmundry Orthopedic Hospital. All rights reserved.
-        </div>
+        <p style={{ fontSize: '0.6875rem', fontWeight: 500, color: '#6b7280', textAlign: 'center' }}>
+          © {new Date().getFullYear()} Rajahmundry Orthopedic Hospital. All rights reserved.
+        </p>
       </div>
 
-      {/* Right Column - Premium AI Generated Hospital Artwork */}
-      <div className="hidden lg:block lg:flex-1 relative overflow-hidden bg-slate-900">
+      {/* ─── Right — Hero Image ──────────────────────── */}
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#0f172a',  }} className="lg:block" >
         <img
           src={loginBg}
           alt="Orthopedic Hospital"
-          className="absolute inset-0 h-full w-full object-cover opacity-85 scale-105"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.8 }}
         />
-        {/* Soft overlay gradient */}
-        <div className="absolute inset-0 bg-gradient-to-tr from-slate-950 via-slate-950/40 to-transparent"></div>
+        {/* Gradient overlay */}
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top right, rgba(10,15,30,0.85) 0%, rgba(10,15,30,0.4) 50%, transparent 100%)' }} />
 
-        {/* Quote overlay */}
-        <div className="absolute bottom-16 left-16 right-16 text-white max-w-lg">
-          <span className="inline-block rounded-full bg-hospital-500/20 backdrop-blur-md px-3 py-1 text-xs font-bold text-hospital-300 border border-hospital-500/30 mb-4">
+        {/* Text content */}
+        <div style={{ position: 'absolute', bottom: '4rem', left: '3.5rem', right: '3.5rem' }}>
+          <span style={{
+            display: 'inline-block', padding: '4px 12px', borderRadius: 99, marginBottom: 16,
+            background: 'rgba(34,120,232,0.2)', border: '1px solid rgba(34,120,232,0.3)',
+            backdropFilter: 'blur(8px)', fontSize: '0.6875rem', fontWeight: 700,
+            color: '#93c5fd', letterSpacing: '0.05em', textTransform: 'uppercase',
+          }}>
             Advanced Bone & Joint Care
           </span>
-          <h2 className="text-3xl font-extrabold tracking-tight leading-snug">
+          <h2 style={{ fontSize: '1.875rem', fontWeight: 800, color: '#ffffff', lineHeight: 1.25, letterSpacing: '-0.025em', marginBottom: 12 }}>
             Empowering Orthopedic Care with Modern Operations.
           </h2>
-          <p className="mt-4 text-sm font-semibold text-slate-300 leading-relaxed">
-            Manage bone trauma surgeries, patient diagnostics, ward assignments, and instant bill calculations using a unified, responsive dashboard.
+          <p style={{ fontSize: '0.875rem', fontWeight: 400, color: '#cbd5e1', lineHeight: 1.7 }}>
+            Manage surgeries, patient diagnostics, ward assignments, and billing using a unified, responsive dashboard.
           </p>
         </div>
       </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 };

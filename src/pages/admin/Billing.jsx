@@ -141,27 +141,25 @@ const Billing = () => {
 
   const columns = [
     {
-      key: 'invoiceNo',
-      header: 'Invoice No',
-      sortable: true,
-      render: (row) => <span className="font-bold text-slate-800">{row.invoiceNo}</span>
+      key: 'invoiceNo', header: 'Invoice No', sortable: true,
+      render: (row) => (
+        <span style={{ fontFamily: 'monospace', fontSize: '0.75rem', fontWeight: 700, color: '#15803d', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '2px 8px', borderRadius: 4 }}>
+          {row.invoiceNo}
+        </span>
+      )
     },
     {
-      key: 'patientName',
-      header: 'Patient Details',
-      sortable: true,
+      key: 'patientName', header: 'Patient', sortable: true,
       render: (row) => (
         <div>
-          <span className="font-bold text-slate-800 block leading-snug">{row.patientName}</span>
-          <span className="text-[10px] font-semibold text-slate-400 block">{row.patientId}</span>
+          <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.8125rem' }}>{row.patientName}</div>
+          <div style={{ fontWeight: 500, color: '#374151', fontSize: '0.7rem', marginTop: 1 }}>{row.patientId}</div>
         </div>
       )
     },
     {
-      key: 'date',
-      header: 'Invoice Date',
-      sortable: true,
-      render: (row) => <span className="text-slate-400 font-semibold">{row.date}</span>
+      key: 'date', header: 'Invoice Date', sortable: true,
+      render: (row) => <span style={{ fontWeight: 600, color: '#111827' }}>{row.date}</span>
     },
     {
       key: 'billType',
@@ -179,10 +177,8 @@ const Billing = () => {
       )
     },
     {
-      key: 'total',
-      header: 'Grand Total',
-      sortable: true,
-      render: (row) => <span className="font-extrabold text-slate-800">₹{row.total}</span>
+      key: 'total', header: 'Grand Total', sortable: true,
+      render: (row) => <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.875rem' }}>₹{row.total}</span>
     },
     {
       key: 'paymentStatus',
@@ -213,21 +209,28 @@ const Billing = () => {
   const { subTotal: formSub, tax: formTax, total: formTotal } = calculateTotals();
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-     <div className="flex flex-col sm:flex-row justify-end">
-        
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+
+      {/* Page Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '1rem', borderBottom: '1px solid #e8eaed' }}>
+        <div>
+          <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#0a0f1e', letterSpacing: '-0.01em' }}>Billing</h2>
+          <p style={{ fontSize: '0.75rem', fontWeight: 500, color: '#374151', marginTop: 2 }}>
+            {bills.length} invoice{bills.length !== 1 ? 's' : ''} generated
+          </p>
+        </div>
         <button
           type="button"
           onClick={handleOpenCreate}
-          className="flex items-center gap-1.5 self-start rounded-xl bg-gradient-to-r from-hospital-500 to-cyanic-500 px-4 py-2.5 text-sm font-bold text-white shadow-premium hover:shadow-premium-hover transition-all focus:outline-none cursor-pointer"
+          style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px', borderRadius: 8, border: 'none', background: '#2278e8', fontSize: '0.8125rem', fontWeight: 600, color: '#fff', cursor: 'pointer', boxShadow: '0 1px 2px rgba(34,120,232,0.3)' }}
         >
-          <Plus className="h-4 w-4" />
-          <span>New Bill</span>
+          <Plus style={{ width: 14, height: 14 }} />
+          New Invoice
         </button>
       </div>
 
       {/* Invoices Table */}
+      <div className="card" style={{ padding: '1.25rem' }}>
       <Table
         columns={columns}
         data={bills}
@@ -235,19 +238,20 @@ const Billing = () => {
         searchKey="patientName"
         emptyMessage="No billing invoices recorded"
         itemsPerPage={6}
-        actions={(row) => (
-          <div className="flex items-center gap-1.5">
+          actions={(row) => (
             <button
               type="button"
               onClick={() => handleOpenInvoice(row)}
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-hospital-600 transition-colors cursor-pointer"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', color: '#374151', cursor: 'pointer', transition: 'all 100ms' }}
               title="View Invoice"
+              onMouseEnter={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.borderColor = '#bfdbfe'; e.currentTarget.style.color = '#2278e8'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.color = '#374151'; }}
             >
-              <Eye className="h-4 w-4" />
+              <Eye style={{ width: 14, height: 14 }} />
             </button>
-          </div>
-        )}
-      />
+          )}
+        />
+      </div>
 
       {/* Modal: Create Bill */}
       <Modal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} title="Generate New Invoice" size="lg">

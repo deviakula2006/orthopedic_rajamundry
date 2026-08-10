@@ -2,50 +2,44 @@ import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useHospital } from '../../context/HospitalContext';
 import {
-  Users,
-  Calendar,
-  IndianRupee,
-  Activity,
-  Bed,
-  ArrowUpRight,
-  TrendingUp,
-  Stethoscope,
-  Receipt
+  Users, Calendar, IndianRupee, Activity,
+  Bed, ArrowUpRight, TrendingUp, Stethoscope,
+  Receipt, UserCheck, BarChart3, Clock
 } from 'lucide-react';
 import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  Tooltip as ChartTooltip,
-  PieChart,
-  Pie,
-  Cell
+  ResponsiveContainer, AreaChart, Area, XAxis, YAxis,
+  Tooltip as ChartTooltip, PieChart, Pie, Cell
 } from 'recharts';
 import orthoIll from '../../assets/ortho_ill.png';
-
-// Modals
 import PatientModal from '../../components/modals/PatientModal';
 import AppointmentModal from '../../components/modals/AppointmentModal';
 import InvestigationModal from '../../components/modals/InvestigationModal';
 
-const Dashboard = () => {
-  const {
-    activities,
-    addPatient,
-    dashboardSummary
-  } = useHospital();
+/* ── Custom chart tooltip ── */
+const CustomTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{ background: '#fff', border: '1px solid #e8eaed', borderRadius: 8, padding: '8px 12px', boxShadow: '0 4px 12px rgba(0,0,0,0.10)' }}>
+      <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#374151', marginBottom: 3 }}>{label}</p>
+      {payload.map(p => (
+        <p key={p.name} style={{ fontSize: '0.75rem', fontWeight: 700, color: p.color ?? '#2278e8' }}>
+          {p.name}: <span style={{ color: '#0f172a' }}>{p.value}</span>
+        </p>
+      ))}
+    </div>
+  );
+};
 
-  // Modal states
-  const [patientModalOpen, setPatientModalOpen] = useState(false);
-  const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
+const Dashboard = () => {
+  const { activities, addPatient, dashboardSummary } = useHospital();
+
+  const [patientModalOpen,       setPatientModalOpen]       = useState(false);
+  const [appointmentModalOpen,   setAppointmentModalOpen]   = useState(false);
   const [investigationModalOpen, setInvestigationModalOpen] = useState(false);
 
-  const handleSavePatient = (patientData) => {
-    addPatient(patientData);
-  };
+  const handleSavePatient = (data) => addPatient(data);
 
+  /* ── KPI stat cards ── */
   const stats = useMemo(() => {
     if (!dashboardSummary) return [];
     return [
@@ -53,260 +47,236 @@ const Dashboard = () => {
         title: 'Total Patients',
         value: dashboardSummary.totalPatients,
         change: '+10%',
-        isPositive: true,
         timeframe: 'from last month',
         icon: Users,
-        color: 'from-blue-500 to-indigo-500',
-        bgLight: 'bg-blue-50'
+        iconBg: 'linear-gradient(135deg,#3b82f6,#6366f1)',
+        accentColor: '#3b82f6',
       },
       {
         title: "Today's Appointments",
         value: dashboardSummary.appointmentsToday,
         change: '+5%',
-        isPositive: true,
         timeframe: 'from last week',
         icon: Calendar,
-        color: 'from-hospital-500 to-cyanic-400',
-        bgLight: 'bg-sky-50'
+        iconBg: 'linear-gradient(135deg,#2278e8,#26a1ae)',
+        accentColor: '#2278e8',
       },
       {
         title: "Today's Revenue",
-        value: new Intl.NumberFormat('en-IN', {
-          style: 'currency',
-          currency: 'INR',
-          maximumFractionDigits: 0
-        }).format(dashboardSummary.revenueToday),
+        value: new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(dashboardSummary.revenueToday),
         change: '+12%',
-        isPositive: true,
         timeframe: 'from yesterday',
         icon: IndianRupee,
-        color: 'from-emerald-500 to-teal-500',
-        bgLight: 'bg-emerald-50'
+        iconBg: 'linear-gradient(135deg,#10b981,#0d9488)',
+        accentColor: '#10b981',
       },
       {
-        title: "Today's Investigations",
+        title: "Investigations Today",
         value: dashboardSummary.todayInvestigations,
         change: '+8%',
-        isPositive: true,
-        timeframe: 'tests executed',
+        timeframe: 'tests ordered',
         icon: Activity,
-        color: 'from-purple-500 to-indigo-500',
-        bgLight: 'bg-purple-50'
-      }
+        iconBg: 'linear-gradient(135deg,#8b5cf6,#6366f1)',
+        accentColor: '#8b5cf6',
+      },
     ];
   }, [dashboardSummary]);
 
-  // Directory counts
-  const activeDoctorsCount = dashboardSummary?.activeDoctors ?? 0;
+  /* ── Directory counts ── */
+  const activeDoctorsCount       = dashboardSummary?.activeDoctors ?? 0;
   const activeReceptionistsCount = dashboardSummary?.activeReceptionists ?? 0;
-  const totalBedsCount = dashboardSummary?.beds?.total ?? 0;
-  const availableBedsCount = dashboardSummary?.beds?.vacant ?? 0;
-  const occupiedBedsCount = dashboardSummary?.beds?.occupied ?? 0;
-  const totalWardsCount = dashboardSummary?.beds?.totalWards ?? 0;
+  const totalBedsCount           = dashboardSummary?.beds?.total ?? 0;
+  const availableBedsCount       = dashboardSummary?.beds?.vacant ?? 0;
 
-  // Chart Data: dynamic trend based on last 7 days of actual appointments and revenue
   const trendData = dashboardSummary?.appointmentsTrend ?? [];
 
   const pieData = useMemo(() => {
     if (!dashboardSummary) return [];
-    const colors = ['#0284c7', '#0d9488', '#8b5cf6', '#f59e0b', '#ec4899'];
-    return dashboardSummary.revenueOverview.map((item, index) => ({
-      ...item,
-      color: colors[index % colors.length]
-    }));
+    const colors = ['#2278e8', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899'];
+    return dashboardSummary.revenueOverview.map((item, i) => ({ ...item, color: colors[i % colors.length] }));
   }, [dashboardSummary]);
 
+  /* ── Activity icon map ── */
+  const activityMeta = {
+    patient:     { Icon: Users,       bg: '#eff6ff', color: '#2278e8' },
+    appointment: { Icon: Calendar,    bg: '#eef2ff', color: '#4338ca' },
+    billing:     { Icon: Receipt,     bg: '#f0fdf4', color: '#15803d' },
+    doctor:      { Icon: Stethoscope, bg: '#faf5ff', color: '#7c3aed' },
+    bed:         { Icon: Bed,         bg: '#ecfeff', color: '#0e7490' },
+  };
+
+  /* ── Loading skeleton ── */
   if (!dashboardSummary) {
     return (
-      <div className="flex h-[80vh] items-center justify-center">
-        <p className="text-sm font-semibold text-slate-400">Loading hospital dashboard analytics...</p>
+      <div style={{ display: 'flex', height: '70vh', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ width: 36, height: 36, border: '3px solid #e8eaed', borderTopColor: '#2278e8', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
+          <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#374151' }}>Loading dashboard…</p>
+        </div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
-      {/* Welcome Banner */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+
+      {/* ─── Welcome Banner ───────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-hospital-600 via-hospital-500 to-cyanic-500 p-6 md:p-8 text-white shadow-premium"
+        animate={{ opacity: 1, y:  0  }}
+        transition={{ duration: 0.3 }}
+        style={{
+          borderRadius: 16, overflow: 'hidden', position: 'relative',
+          background: 'linear-gradient(135deg, #1a60d5 0%, #2278e8 45%, #26a1ae 100%)',
+          padding: '1.5rem 2rem', color: '#fff',
+          boxShadow: '0 4px 16px rgba(34,120,232,0.25)',
+        }}
       >
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-          <div className="max-w-xl">
-            <span className="inline-block rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white/90 backdrop-blur-sm mb-3">
-              Admin Control Center
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div style={{ maxWidth: 560 }}>
+            <span style={{ display: 'inline-block', background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)', borderRadius: 99, padding: '3px 12px', fontSize: '0.6875rem', fontWeight: 700, color: '#fff', marginBottom: 10, letterSpacing: '0.04em' }}>
+              ADMIN CONTROL CENTER
             </span>
-            <h2 className="text-xl md:text-2xl font-extrabold tracking-tight">
-              Rajahmundry Orthopedic Hospital Management
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', marginBottom: 8 }}>
+              Rajahmundry Orthopedic Hospital
             </h2>
-            <p className="mt-2 text-xs md:text-sm text-slate-100 font-medium leading-relaxed">
-              Monitor orthopedics staff availability, schedule joint-replacement consultations, allocate patient wards, and audit billing metrics in real-time.
+            <p style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.85)', fontWeight: 400, lineHeight: 1.6 }}>
+              Monitor staff, schedule consultations, allocate wards, and audit billing metrics in real-time.
             </p>
           </div>
-          <div className="shrink-0 hidden md:block">
-            <img src={orthoIll} alt="Illustration" className="h-28 w-auto object-contain opacity-95" />
-          </div>
+          <img src={orthoIll} alt="Orthopedic" style={{ height: 100, opacity: 0.95, flexShrink: 0, display: 'block' }} className="hidden md:block" />
         </div>
-        <div className="absolute top-0 right-0 h-full w-1/3 bg-white/5 skew-x-12 translate-x-10 pointer-events-none"></div>
+        {/* Decorative shapes */}
+        <div style={{ position: 'absolute', top: 0, right: '5%', height: '100%', width: '25%', background: 'rgba(255,255,255,0.06)', transform: 'skewX(-12deg)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', top: 0, right: '15%', height: '100%', width: '12%', background: 'rgba(255,255,255,0.04)', transform: 'skewX(-12deg)', pointerEvents: 'none' }} />
       </motion.div>
 
-      {/* KPI Cards Grid */}
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      {/* ─── KPI Cards ────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
         {stats.map((stat, idx) => {
           const Icon = stat.icon;
           return (
             <motion.div
               key={stat.title}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.05 }}
-              className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium hover:shadow-premium-hover transition-all group"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y:  0  }}
+              transition={{ delay: idx * 0.06 }}
+              style={{
+                background: '#fff', border: '1px solid #e8eaed', borderRadius: 12,
+                padding: '1.25rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                transition: 'all 200ms', cursor: 'default',
+              }}
+              whileHover={{ y: -2, boxShadow: '0 6px 16px rgba(0,0,0,0.08)' }}
             >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   {stat.title}
-                </span>
-                <div className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-tr ${stat.color} text-white shadow-premium group-hover:scale-105 transition-transform`}>
-                  <Icon className="h-5 w-5" />
+                </p>
+                <div style={{ width: 36, height: 36, borderRadius: 9, background: stat.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 2px 6px ${stat.accentColor}33` }}>
+                  <Icon style={{ width: 17, height: 17, color: '#fff' }} />
                 </div>
               </div>
-              <div className="mt-4">
-                <span className="text-2xl font-bold tracking-tight text-slate-800">
-                  {stat.value}
+              <p style={{ fontSize: '1.625rem', fontWeight: 800, color: '#0a0f1e', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 8 }}>
+                {stat.value}
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: '0.6875rem', fontWeight: 700, color: '#15803d' }}>
+                  <ArrowUpRight style={{ width: 12, height: 12 }} />{stat.change}
                 </span>
-                <div className="mt-2 flex items-center gap-1.5">
-                  <span className="flex items-center gap-0.5 text-xs font-bold text-emerald-600">
-                    <ArrowUpRight className="h-3.5 w-3.5" />
-                    {stat.change}
-                  </span>
-                  <span className="text-xs font-medium text-slate-400">
-                    {stat.timeframe}
-                  </span>
-                </div>
+                <span style={{ fontSize: '0.6875rem', fontWeight: 500, color: '#374151' }}>{stat.timeframe}</span>
               </div>
             </motion.div>
           );
         })}
       </div>
 
-      {/* Recharts Analytics Grid */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Area Chart - Appointment Trends */}
-        <div className="lg:col-span-2 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+      {/* ─── Charts Row ───────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem' }} className="lg-chart-grid">
+        {/* Area Chart */}
+        <div style={{ background: '#fff', border: '1px solid #e8eaed', borderRadius: 12, padding: '1.25rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f3f4', paddingBottom: '0.875rem', marginBottom: '1.25rem' }}>
             <div>
-              <h3 className="text-base font-bold text-slate-800">OPD Appointments Trend</h3>
-              <p className="text-xs text-slate-400 font-semibold">Weekly patient diagnostics load</p>
+              <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a' }}>OPD Appointments Trend</h3>
+              <p style={{ fontSize: '0.6875rem', fontWeight: 500, color: '#374151', marginTop: 2 }}>Weekly patient load</p>
             </div>
-            <div className="flex items-center gap-1 text-xs font-bold text-hospital-600 bg-sky-50 px-2.5 py-1.5 rounded-lg border border-sky-100">
-              <TrendingUp className="h-3.5 w-3.5" />
-              <span>This Week</span>
-            </div>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.6875rem', fontWeight: 700, color: '#2278e8', background: '#eff6ff', border: '1px solid #bfdbfe', padding: '4px 10px', borderRadius: 6 }}>
+              <TrendingUp style={{ width: 12, height: 12 }} />This Week
+            </span>
           </div>
-
-          <div className="h-64 w-full text-xs">
+          <div style={{ height: 220 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={trendData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="colorApt" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.2}/>
-                    <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0}/>
+                  <linearGradient id="aptGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="#2278e8" stopOpacity={0.15} />
+                    <stop offset="95%" stopColor="#2278e8" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="name" stroke="#94a3b8" />
-                <YAxis stroke="#94a3b8" />
-                <ChartTooltip />
-                <Area type="monotone" dataKey="appointments" stroke="#0ea5e9" strokeWidth={3} fillOpacity={1} fill="url(#colorApt)" />
+                <XAxis dataKey="name" stroke="#9ca3af" tick={{ fontSize: 11, fill: '#374151', fontWeight: 500 }} tickLine={false} axisLine={false} />
+                <YAxis stroke="#9ca3af" tick={{ fontSize: 11, fill: '#374151', fontWeight: 500 }} tickLine={false} axisLine={false} />
+                <ChartTooltip content={<CustomTooltip />} />
+                <Area type="monotone" dataKey="appointments" name="Appointments" stroke="#2278e8" strokeWidth={2.5} fillOpacity={1} fill="url(#aptGrad)" dot={false} activeDot={{ r: 4, fill: '#2278e8' }} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Donut Chart - Revenue Breakdown */}
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium flex flex-col justify-between">
-          <div className="border-b border-slate-100 pb-4 mb-4">
-            <h3 className="text-base font-bold text-slate-800">Revenue Overview</h3>
-            <p className="text-xs text-slate-400 font-semibold">Monthly income streams breakdown</p>
+        {/* Pie / Donut Chart */}
+        <div style={{ background: '#fff', border: '1px solid #e8eaed', borderRadius: 12, padding: '1.25rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ borderBottom: '1px solid #f1f3f4', paddingBottom: '0.875rem', marginBottom: '1rem' }}>
+            <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a' }}>Revenue Breakdown</h3>
+            <p style={{ fontSize: '0.6875rem', fontWeight: 500, color: '#374151', marginTop: 2 }}>Monthly income by type</p>
           </div>
-
-          <div className="h-48 w-full flex items-center justify-center">
+          <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {pieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
+                <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={4} dataKey="value">
+                  {pieData.map((e, i) => <Cell key={i} fill={e.color} />)}
                 </Pie>
-                <ChartTooltip />
+                <ChartTooltip content={<CustomTooltip />} />
               </PieChart>
             </ResponsiveContainer>
           </div>
-
-          <div className="grid grid-cols-3 gap-1 mt-2 text-[10px] font-bold text-slate-500">
-            {pieData.map((d) => (
-              <div key={d.name} className="flex flex-col items-center text-center">
-                <span className="h-2 w-2 rounded-full mb-1" style={{ backgroundColor: d.color }}></span>
-                <span className="truncate w-full">{d.name}</span>
-                <span className="text-slate-800 font-extrabold">{d.value}%</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 8px', marginTop: 8 }}>
+            {pieData.map(d => (
+              <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: d.color, flexShrink: 0 }} />
+                <span style={{ fontSize: '0.6875rem', fontWeight: 500, color: '#374151', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name}</span>
+                <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#0f172a' }}>{d.value}%</span>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Grid Bottom: Recent Activities & Hospital Panel Summary */}
-      <div className="grid gap-6 md:grid-cols-2">
+      {/* ─── Bottom Row: Activities + Directory ───────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }} className="md-two-col">
+
         {/* Recent Activities */}
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium">
-          <div className="border-b border-slate-100 pb-4 mb-4 flex items-center justify-between">
-            <h3 className="text-base font-bold text-slate-800">Recent Activities</h3>
-            <span className="rounded-full bg-slate-50 border px-2 py-1 text-[10px] font-bold text-slate-400">
-              Auto Updates
+        <div style={{ background: '#fff', border: '1px solid #e8eaed', borderRadius: 12, padding: '1.25rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f3f4', paddingBottom: '0.875rem', marginBottom: '0.875rem' }}>
+            <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a' }}>Recent Activity</h3>
+            <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#374151', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 6, padding: '3px 8px' }}>
+              Auto-updates
             </span>
           </div>
-
-          <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto pr-1">
-            {activities.slice(0, 5).map((act) => {
-              let Icon = Activity;
-              let color = 'text-blue-500 bg-blue-50';
-              if (act.type === 'patient') {
-                Icon = Users;
-                color = 'text-sky-500 bg-sky-50';
-              } else if (act.type === 'appointment') {
-                Icon = Calendar;
-                color = 'text-indigo-500 bg-indigo-50';
-              } else if (act.type === 'billing') {
-                Icon = Receipt;
-                color = 'text-emerald-500 bg-emerald-50';
-              } else if (act.type === 'doctor') {
-                Icon = Stethoscope;
-                color = 'text-violet-500 bg-violet-50';
-              } else if (act.type === 'bed') {
-                Icon = Bed;
-                color = 'text-teal-500 bg-teal-50';
-              }
-
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0, maxHeight: 280, overflowY: 'auto' }}>
+            {activities.slice(0, 6).map((act) => {
+              const { Icon, bg, color } = activityMeta[act.type] ?? activityMeta.appointment;
               return (
-                <div key={act.id} className="flex items-center gap-4 py-3.5 first:pt-0 last:pb-0">
-                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${color}`}>
-                    <Icon className="h-4.5 w-4.5" />
+                <div key={act.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderBottom: '1px solid #f8f9fa' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Icon style={{ width: 14, height: 14, color }} />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-700 leading-normal truncate">
-                       {act.action}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#0f172a', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {act.action}
                     </p>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                      {act.user} &bull; {act.time}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                      <Clock style={{ width: 10, height: 10, color: '#374151', flexShrink: 0 }} />
+                      <span style={{ fontSize: '0.6875rem', fontWeight: 500, color: '#374151' }}>{act.user} · {act.time}</span>
+                    </div>
                   </div>
                 </div>
               );
@@ -314,73 +284,47 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Panel Stats Summary */}
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-premium flex flex-col justify-between">
-          <div className="border-b border-slate-100 pb-4 mb-4">
-            <h3 className="text-base font-bold text-slate-800">Quick Directory Audit</h3>
-            <p className="text-xs text-slate-400 font-semibold">Active staff and ward registrations</p>
+        {/* Quick Directory Audit */}
+        <div style={{ background: '#fff', border: '1px solid #e8eaed', borderRadius: 12, padding: '1.25rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ borderBottom: '1px solid #f1f3f4', paddingBottom: '0.875rem', marginBottom: '1rem' }}>
+            <h3 style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a' }}>Quick Directory</h3>
+            <p style={{ fontSize: '0.6875rem', fontWeight: 500, color: '#374151', marginTop: 2 }}>Staff and ward summary</p>
           </div>
-
-          <div className="grid grid-cols-2 gap-4 flex-1 items-center">
-            <div className="flex items-center gap-3.5 p-4 rounded-xl border border-slate-100 bg-slate-50/50">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500 text-white shadow-premium">
-                <Stethoscope className="h-5 w-5" />
-              </div>
-              <div>
-                <span className="text-xs font-bold text-slate-400 block leading-none">Doctors</span>
-                <span className="text-sm font-extrabold text-slate-800">{activeDoctorsCount} Panelists</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3.5 p-4 rounded-xl border border-slate-100 bg-slate-50/50">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500 text-white shadow-premium">
-                <Users className="h-5 w-5" />
-              </div>
-              <div>
-                <span className="text-xs font-bold text-slate-400 block leading-none">Reception Staff</span>
-                <span className="text-sm font-extrabold text-slate-800">{activeReceptionistsCount} Members</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3.5 p-4 rounded-xl border border-slate-100 bg-slate-50/50">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyanic-500 text-white shadow-premium">
-                <Bed className="h-5 w-5" />
-              </div>
-              <div>
-                <span className="text-xs font-bold text-slate-400 block leading-none">Total Beds</span>
-                <span className="text-sm font-extrabold text-slate-800">{totalBedsCount} Allocated</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3.5 p-4 rounded-xl border border-slate-100 bg-slate-50/50">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500 text-white shadow-premium">
-                <Bed className="h-5 w-5" />
-              </div>
-              <div>
-                <span className="text-xs font-bold text-slate-400 block leading-none">Vacant Beds</span>
-                <span className="text-sm font-extrabold text-slate-800">{availableBedsCount} Vacant</span>
-              </div>
-            </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', flex: 1 }}>
+            {[
+              { label: 'Doctors',       value: `${activeDoctorsCount} panelists`,  icon: Stethoscope, bg: '#faf5ff', color: '#7c3aed' },
+              { label: 'Receptionists', value: `${activeReceptionistsCount} staff`, icon: UserCheck,   bg: '#eff6ff', color: '#2278e8' },
+              { label: 'Total Beds',    value: `${totalBedsCount} allocated`,       icon: Bed,         bg: '#ecfeff', color: '#0e7490' },
+              { label: 'Vacant Beds',   value: `${availableBedsCount} available`,   icon: BarChart3,   bg: '#f0fdf4', color: '#15803d' },
+            ].map(item => {
+              const Icon = item.icon;
+              return (
+                <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#f8f9fa', border: '1px solid #f1f3f4', borderRadius: 10, padding: '0.875rem' }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 8, background: item.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Icon style={{ width: 16, height: 16, color: item.color }} />
+                  </div>
+                  <div>
+                    <p style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#374151', marginBottom: 2 }}>{item.label}</p>
+                    <p style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#0f172a' }}>{item.value}</p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      {/* Global Modals for Quick Actions */}
-      <PatientModal
-        isOpen={patientModalOpen}
-        onClose={() => setPatientModalOpen(false)}
-        onSave={handleSavePatient}
-      />
-      
-      <AppointmentModal
-        isOpen={appointmentModalOpen}
-        onClose={() => setAppointmentModalOpen(false)}
-      />
+      {/* Modals */}
+      <PatientModal       isOpen={patientModalOpen}       onClose={() => setPatientModalOpen(false)}       onSave={handleSavePatient} />
+      <AppointmentModal   isOpen={appointmentModalOpen}   onClose={() => setAppointmentModalOpen(false)} />
+      <InvestigationModal isOpen={investigationModalOpen} onClose={() => setInvestigationModalOpen(false)} />
 
-      <InvestigationModal
-        isOpen={investigationModalOpen}
-        onClose={() => setInvestigationModalOpen(false)}
-      />
+      <style>{`
+        @media (max-width: 900px) {
+          .lg-chart-grid { grid-template-columns: 1fr !important; }
+          .md-two-col    { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 };
