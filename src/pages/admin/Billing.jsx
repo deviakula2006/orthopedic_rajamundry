@@ -6,7 +6,7 @@ import { Plus, Printer, Eye, Receipt, PlusCircle } from 'lucide-react';
 import Autocomplete from '../../components/common/Autocomplete';
 
 const Billing = () => {
-  const { bills, patients, doctors, investigations, addBill, updateBillStatus } = useHospital();
+  const { bills, patients, doctors, investigations, appointmentTypes, hospitalSettings, addBill, updateBillStatus } = useHospital();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
@@ -15,55 +15,81 @@ const Billing = () => {
   // Form states
   const [patientId, setPatientId] = useState('');
   const [doctorId, setDoctorId] = useState('');
-  const [billType, setBillType] = useState('Consultation'); // 'Consultation' or 'Investigations'
+  const [billType, setBillType] = useState('Appointments'); // 'Appointments', 'Investigations', 'Combined'
   const [paymentMode, setPaymentMode] = useState('UPI');
   const [paymentStatus, setPaymentStatus] = useState('Paid');
   const [discount, setDiscount] = useState(0);
 
-  // Consultation flow state
-  const [consultationFee, setConsultationFee] = useState(500);
-
-  // Investigation flow state
+  // Billable item selection states
+  const [selectedApptTypeId, setSelectedApptTypeId] = useState('');
   const [selectedInvId, setSelectedInvId] = useState('');
   const [billItems, setBillItems] = useState([]);
 
   // Search active patient/doctor names
-  const activePatientObj = patients.find((p) => p.id === patientId);
-  const activeDoctorObj = doctors.find((d) => d.id === doctorId);
+  const activePatientObj = patients.find((p) => p.id === patientId || p.dbId === patientId || p.code === patientId);
+  const activeDoctorObj = doctors.find((d) => d.id === doctorId || d.dbId === doctorId || d.code === doctorId);
+
+  // Configured GST rate from hospital settings (default 0%)
+  const gstRate = Number(hospitalSettings?.gstRate ?? 0);
+
+  // Formatted appointment service options for Autocomplete
+  const appointmentServiceOptions = (appointmentTypes || [])
+    .filter((t) => t.isActive)
+    .map((t) => ({
+      id: t.id,
+      name: t.name,
+      defaultFee: t.defaultFee,
+      displayName: `${t.name} (₹${t.defaultFee})`
+    }));
 
   // Trigger when create modal opens
   const handleOpenCreate = () => {
     setPatientId('');
     setDoctorId('');
-    setBillType('Consultation');
+    setBillType('Appointments');
     setPaymentMode('UPI');
     setPaymentStatus('Paid');
     setDiscount(0);
-    setConsultationFee(500);
+    setSelectedApptTypeId('');
     setSelectedInvId('');
-    setBillItems([
-      {
-        description: 'Consultation Fee - Doctor',
-        type: 'Consultation',
-        amount: 500
-      }
-    ]);
+    setBillItems([]);
     setIsCreateOpen(true);
   };
 
-  const handleSelectInvestigation = (invId) => {
-    setSelectedInvId(invId);
+  // Add selected appointment service to invoice
+  const addAppointmentServiceItem = () => {
+    if (!selectedApptTypeId) return;
+    const typeObj = appointmentTypes.find((t) => t.id === selectedApptTypeId);
+    if (!typeObj) return;
+
+    // Check for duplicate
+    if (billItems.some((item) => item.code === typeObj.id)) {
+      alert(`"${typeObj.name}" has already been added to this invoice.`);
+      return;
+    }
+
+    setBillItems([
+      ...billItems,
+      {
+        code: typeObj.id,
+        appointmentTypeId: typeObj.id,
+        description: `${typeObj.name} Service Fee`,
+        type: typeObj.name === 'Follow Up' ? 'Follow Up' : (typeObj.name === 'Therapy' ? 'Therapy' : 'Consultation'),
+        amount: Number(typeObj.defaultFee)
+      }
+    ]);
+    setSelectedApptTypeId('');
   };
 
-  // Add selected investigation item to list
+  // Add selected investigation item to invoice
   const addInvestigationItem = () => {
     if (!selectedInvId) return;
-    const invItem = investigations.find((i) => i.id === selectedInvId);
+    const invItem = investigations.find((i) => i.id === selectedInvId || i.dbId === selectedInvId);
     if (!invItem) return;
 
     // Avoid duplicate items
     if (billItems.some((item) => item.code === invItem.id)) {
-      alert('This investigation test has already been added to the invoice.');
+      alert(`"${invItem.testName}" has already been added to the invoice.`);
       return;
     }
 
@@ -71,9 +97,10 @@ const Billing = () => {
       ...billItems,
       {
         code: invItem.id,
+        investigationId: invItem.dbId || invItem.id,
         description: invItem.testName,
         type: 'Investigation',
-        amount: invItem.price
+        amount: Number(invItem.price)
       }
     ]);
     setSelectedInvId('');
@@ -83,12 +110,14 @@ const Billing = () => {
     setBillItems(billItems.filter((_, i) => i !== idx));
   };
 
-  // Dynamic Calculations (no hardcoding)
+  // Dynamic Calculations using configured GST rate
   const calculateTotals = () => {
-    const subTotal = billItems.reduce((acc, item) => acc + item.amount, 0);
-    const tax = Math.round(subTotal * 0.05 * 100) / 100; // 5% GST
-    const total = Math.max(0, subTotal + tax - parseFloat(discount || 0));
-    return { subTotal, tax, total };
+    const subTotal = billItems.reduce((acc, item) => acc + item.amount * (item.quantity ?? 1), 0);
+    const discountVal = Math.min(subTotal, Math.max(0, parseFloat(discount || 0)));
+    const taxableAmount = Math.max(0, subTotal - discountVal);
+    const tax = Math.round(taxableAmount * (gstRate / 100) * 100) / 100;
+    const total = Math.max(0, taxableAmount + tax);
+    return { subTotal, taxableAmount, tax, total, gstRate };
   };
 
   const handleCreateSubmit = async (e) => {
@@ -102,7 +131,7 @@ const Billing = () => {
       return;
     }
     if (billItems.length === 0) {
-      alert('Please add at least one item to generate this invoice.');
+      alert('Please search and add at least one billable appointment service or investigation.');
       return;
     }
 
@@ -111,7 +140,7 @@ const Billing = () => {
     const newBill = await addBill({
       patientId,
       patientName: activePatientObj?.name || 'Walk-In Patient',
-      billType,
+      billType: billType === 'Appointments' ? 'OPD' : (billType === 'Investigations' ? 'Lab' : 'OPD'),
       doctorId,
       doctorName: activeDoctorObj?.name || 'Assigned Consultant',
       paymentMode,
@@ -139,39 +168,33 @@ const Billing = () => {
     window.print();
   };
 
+  // Table Columns Setup
   const columns = [
     {
-      key: 'invoiceNo', header: 'Invoice No', sortable: true,
+      key: 'invoiceNo', header: 'Invoice ID', sortable: true,
       render: (row) => (
-        <span style={{ fontFamily: 'monospace', fontSize: '0.75rem', fontWeight: 700, color: '#15803d', background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '2px 8px', borderRadius: 4 }}>
+        <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#0f172a', background: '#f1f5f9', padding: '2px 8px', borderRadius: 4, fontSize: '0.75rem' }}>
           {row.invoiceNo}
         </span>
       )
     },
     {
-      key: 'patientName', header: 'Patient', sortable: true,
+      key: 'patientName', header: 'Patient Name', sortable: true,
       render: (row) => (
         <div>
           <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.8125rem' }}>{row.patientName}</div>
-          <div style={{ fontWeight: 500, color: '#374151', fontSize: '0.7rem', marginTop: 1 }}>{row.patientId}</div>
+          <div style={{ fontWeight: 500, color: '#64748b', fontSize: '0.7rem' }}>{row.patientId}</div>
         </div>
       )
     },
     {
-      key: 'date', header: 'Invoice Date', sortable: true,
-      render: (row) => <span style={{ fontWeight: 600, color: '#111827' }}>{row.date}</span>
+      key: 'doctorName', header: 'Consultant', sortable: true,
+      render: (row) => <span style={{ fontWeight: 600, color: '#334155' }}>{row.doctorName || '—'}</span>
     },
     {
-      key: 'billType',
-      header: 'Billing Scope',
+      key: 'billType', header: 'Scope',
       render: (row) => (
-        <span
-          className={`inline-block rounded px-2.5 py-0.5 text-xs font-bold border ${
-            row.billType === 'Investigations'
-              ? 'bg-purple-50 text-purple-600 border-purple-100'
-              : 'bg-blue-50 text-hospital-600 border-blue-100'
-          }`}
-        >
+        <span style={{ display: 'inline-block', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 5, padding: '2px 8px', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
           {row.billType}
         </span>
       )
@@ -210,7 +233,6 @@ const Billing = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-
       {/* Page Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '1rem', borderBottom: '1px solid #e8eaed' }}>
         <div>
@@ -231,21 +253,21 @@ const Billing = () => {
 
       {/* Invoices Table */}
       <div className="card" style={{ padding: '1.25rem' }}>
-      <Table
-        columns={columns}
-        data={bills}
-        searchPlaceholder="Search invoices by patient name..."
-        searchKey="patientName"
-        emptyMessage="No billing invoices recorded"
-        itemsPerPage={6}
+        <Table
+          columns={columns}
+          data={bills}
+          searchPlaceholder="Search invoices by patient name..."
+          searchKey="patientName"
+          emptyMessage="No billing invoices recorded"
+          itemsPerPage={6}
           actions={(row) => (
             <button
               type="button"
               onClick={() => handleOpenInvoice(row)}
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', color: '#374151', cursor: 'pointer', transition: 'all 100ms' }}
               title="View Invoice"
-              onMouseEnter={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.borderColor = '#bfdbfe'; e.currentTarget.style.color = '#2278e8'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.color = '#374151'; }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.borderColor = '#bfdbfe'; e.currentTarget.style.color = '#2278e8'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.color = '#374151'; }}
             >
               <Eye style={{ width: 14, height: 14 }} />
             </button>
@@ -260,13 +282,13 @@ const Billing = () => {
             {/* Searchable Autocomplete Patient Selector */}
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Select Patient
+                Select Patient <span className="text-red-500">*</span>
               </label>
               <Autocomplete
                 options={patients}
                 value={patientId}
                 onChange={setPatientId}
-                placeholder="Search patient by name..."
+                placeholder="Search patient by name or ID..."
                 displayKey="name"
                 idKey="id"
               />
@@ -275,7 +297,7 @@ const Billing = () => {
             {/* Searchable Autocomplete Doctor Selector */}
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Treating Consultant
+                Treating Consultant <span className="text-red-500">*</span>
               </label>
               <Autocomplete
                 options={doctors.filter((d) => d.status === 'Active')}
@@ -287,7 +309,7 @@ const Billing = () => {
               />
             </div>
 
-            {/* Billing Scope Options: Consultation / Investigations (Remove Pharmacy) */}
+            {/* Billing Scope Selector */}
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                 Billing Scope
@@ -297,43 +319,56 @@ const Billing = () => {
                 onChange={(e) => setBillType(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3 text-sm text-slate-700 focus:outline-none cursor-pointer font-semibold"
               >
-                <option value="Consultation">OPD Consultation</option>
+                <option value="Appointments">Appointments / Services</option>
                 <option value="Investigations">Investigations (Lab Tests)</option>
+                <option value="Combined">Combined (Services & Labs)</option>
               </select>
             </div>
           </div>
 
-          {/* Consultation Bill Flow */}
-          {billType === 'Consultation' ? (
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Consultation Fee (INR)
+          {/* Appointment Services Search & Select Section */}
+          {(billType === 'Appointments' || billType === 'Combined') && (
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">
+                Add Appointment / Hospital Service
               </label>
-              <input
-                type="number"
-                value={consultationFee}
-                onChange={(e) => setConsultationFee(e.target.value)}
-                className="w-full sm:w-1/3 rounded-lg border border-slate-200 bg-white py-2 px-3 text-sm text-slate-700 focus:outline-none"
-              />
-            </div>
-          ) : (
-            /* Investigation Bill Flow */
-            <div className="border-t border-slate-100 pt-4">
-              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-                Select Investigations
-              </h4>
-
-              {/* Investigation Search Autocomplete (Auto Fetch Cost) */}
-              <div className="grid gap-3 sm:grid-cols-4 items-end bg-slate-50 p-3 rounded-xl border mb-4">
+              <div className="grid gap-3 sm:grid-cols-4 items-end">
                 <div className="sm:col-span-3">
-                  <label className="block text-[10px] font-bold text-slate-400 mb-1">
-                    Search Investigation Test (Master Catalog)
-                  </label>
+                  <Autocomplete
+                    options={appointmentServiceOptions}
+                    value={selectedApptTypeId}
+                    onChange={setSelectedApptTypeId}
+                    placeholder="Search appointment service (e.g. Consultation, Therapy, Follow Up)..."
+                    displayKey="displayName"
+                    idKey="id"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={addAppointmentServiceItem}
+                  disabled={!selectedApptTypeId}
+                  className="w-full rounded-xl bg-hospital-500 py-2.5 text-xs font-bold text-white hover:bg-hospital-600 flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-sm transition-colors"
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  <span>Add Service</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Investigation Tests Search & Select Section */}
+          {(billType === 'Investigations' || billType === 'Combined') && (
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">
+                Add Diagnostic Investigation (Lab Test)
+              </label>
+              <div className="grid gap-3 sm:grid-cols-4 items-end">
+                <div className="sm:col-span-3">
                   <Autocomplete
                     options={investigations}
                     value={selectedInvId}
-                    onChange={handleSelectInvestigation}
-                    placeholder="Search diagnostic tests..."
+                    onChange={setSelectedInvId}
+                    placeholder="Search diagnostic tests (e.g. X-Ray, MRI, Blood Panel)..."
                     displayKey="testName"
                     idKey="id"
                   />
@@ -342,51 +377,63 @@ const Billing = () => {
                   type="button"
                   onClick={addInvestigationItem}
                   disabled={!selectedInvId}
-                  className="w-full rounded-xl bg-hospital-500 py-2.5 text-xs font-bold text-white hover:bg-hospital-600 flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                  className="w-full rounded-xl bg-hospital-500 py-2.5 text-xs font-bold text-white hover:bg-hospital-600 flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-sm transition-colors"
                 >
                   <PlusCircle className="h-4 w-4" />
-                  <span>Add Item</span>
+                  <span>Add Test</span>
                 </button>
-              </div>
-
-              {/* Bill Items Table (User cannot enter cost manually) */}
-              <div className="rounded-xl border border-slate-200 overflow-hidden bg-white max-h-40 overflow-y-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b bg-slate-50/50">
-                      <th className="px-4 py-2 text-slate-400 font-bold">Test Name</th>
-                      <th className="px-4 py-2 text-slate-400 font-bold text-right">Auto Cost (₹)</th>
-                      <th className="px-4 py-2 text-slate-400 font-bold text-right">Remove</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                    {billItems.map((item, idx) => (
-                      <tr key={idx}>
-                        <td className="px-4 py-2">{item.description}</td>
-                        <td className="px-4 py-2 text-right font-bold">₹{item.amount}</td>
-                        <td className="px-4 py-2 text-right">
-                          <button
-                            type="button"
-                            onClick={() => removeItemFromBill(idx)}
-                            className="text-red-500 hover:text-red-700 font-bold text-sm cursor-pointer"
-                          >
-                            &times;
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                    {billItems.length === 0 && (
-                      <tr>
-                        <td colSpan="3" className="px-4 py-6 text-center text-slate-400 font-semibold">
-                          No investigations selected yet.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
               </div>
             </div>
           )}
+
+          {/* Bill Items Table */}
+          <div className="space-y-1.5">
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Selected Billable Items ({billItems.length})
+            </h4>
+            <div className="rounded-xl border border-slate-200 overflow-hidden bg-white max-h-48 overflow-y-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
+                    <th className="px-4 py-2.5">Item Description</th>
+                    <th className="px-4 py-2.5">Category</th>
+                    <th className="px-4 py-2.5 text-right">Standard Fee (₹)</th>
+                    <th className="px-4 py-2.5 text-right">Remove</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                  {billItems.map((item, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/50">
+                      <td className="px-4 py-2 font-bold text-slate-800">{item.description}</td>
+                      <td className="px-4 py-2">
+                        <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                          {item.type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-right font-bold text-slate-800">₹{item.amount}</td>
+                      <td className="px-4 py-2 text-right">
+                        <button
+                          type="button"
+                          onClick={() => removeItemFromBill(idx)}
+                          className="text-red-500 hover:text-red-700 font-bold text-base cursor-pointer px-2"
+                          title="Remove item"
+                        >
+                          &times;
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {billItems.length === 0 && (
+                    <tr>
+                      <td colSpan="4" className="px-4 py-6 text-center text-slate-400 font-medium">
+                        No billable items added yet. Search and add services or lab tests above.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
           {/* Form summary layout */}
           <div className="grid gap-4 sm:grid-cols-2 border-t border-slate-100 pt-4">
@@ -402,7 +449,7 @@ const Billing = () => {
                 >
                   <option value="UPI">UPI / Net Banking</option>
                   <option value="Cash">Cash</option>
-                  <option value="Card">Card Swap</option>
+                  <option value="Card">Card</option>
                   <option value="Insurance Claim">Insurance Claim</option>
                 </select>
               </div>
@@ -413,6 +460,7 @@ const Billing = () => {
                   </label>
                   <input
                     type="number"
+                    min="0"
                     value={discount}
                     onChange={(e) => setDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 px-3 text-sm text-slate-700 focus:outline-none"
@@ -440,13 +488,15 @@ const Billing = () => {
                 <span>Subtotal:</span>
                 <span className="text-slate-800">₹{formSub}</span>
               </div>
-              <div className="flex justify-between">
-                <span>Tax (5% CGST/SGST):</span>
-                <span className="text-slate-800">₹{formTax}</span>
-              </div>
-              <div className="flex justify-between text-red-500">
-                <span>Discount Applied:</span>
-                <span>-₹{discount}</span>
+              {discount > 0 && (
+                <div className="flex justify-between text-red-500">
+                  <span>Discount:</span>
+                  <span>-₹{discount}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-xs text-slate-500">
+                <span>GST ({gstRate}%):</span>
+                <span className="text-slate-800 font-bold">₹{formTax}</span>
               </div>
               <div className="flex justify-between text-base font-extrabold text-slate-800 border-t pt-2 mt-2">
                 <span>Total Bill Amount:</span>
@@ -459,43 +509,45 @@ const Billing = () => {
             <button
               type="button"
               onClick={() => setIsCreateOpen(false)}
-              className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-500 hover:bg-slate-50 cursor-pointer"
+              className="rounded-xl border border-slate-200 py-2.5 px-4 text-xs font-bold text-slate-500 hover:bg-slate-50 cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-6 py-2.5 rounded-xl bg-hospital-500 text-xs font-bold text-white shadow-premium hover:bg-hospital-600 cursor-pointer"
+              disabled={billItems.length === 0}
+              className="rounded-xl bg-hospital-500 hover:bg-hospital-600 py-2.5 px-6 text-xs font-bold text-white shadow-premium flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
-              Generate Bill
+              <Receipt className="h-4 w-4" />
+              <span>Generate Invoice</span>
             </button>
           </div>
         </form>
       </Modal>
 
-      {/* Modal: View Printable Invoice Sheet */}
-      <Modal isOpen={isInvoiceOpen} onClose={() => setIsInvoiceOpen(false)} title="Print Hospital Invoice Receipt" size="lg">
-        {selectedBill && (
+      {/* Modal: View & Print Invoice */}
+      {selectedBill && (
+        <Modal isOpen={isInvoiceOpen} onClose={() => setIsInvoiceOpen(false)} title="Patient Tax Invoice" size="lg">
           <div className="space-y-6">
-            <div className="border rounded-2xl p-6 md:p-8 bg-white shadow-inner select-text">
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between border-b pb-6 gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-tr from-hospital-500 to-cyanic-400 text-white shadow-premium">
-                    <Receipt className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-extrabold text-slate-800 leading-none">RAJAHMUNDRY ORTHOPEDIC</h2>
-                    <span className="text-[10px] font-bold text-hospital-600 tracking-wider uppercase">
-                      Hospital Management System
-                    </span>
-                  </div>
-                </div>
-                <div className="text-left md:text-right">
-                  <h4 className="text-sm font-bold text-slate-800">TAX INVOICE</h4>
-                  <p className="text-xs text-slate-400 font-semibold">
-                    Invoice No: <span className="text-slate-700 font-bold">{selectedBill.invoiceNo}</span>
+            <div className="p-6 border rounded-2xl bg-white shadow-sm print:border-none print:shadow-none" id="invoice-receipt">
+              <div className="flex justify-between items-start border-b pb-6">
+                <div>
+                  <h3 className="text-lg font-black text-slate-800 tracking-tight">
+                    {hospitalSettings?.name || 'Rajahmundry Orthopedic Hospital'}
+                  </h3>
+                  <p className="text-xs text-slate-500 max-w-sm mt-1">
+                    {hospitalSettings?.address || 'Danavaipeta, Tilak Road, Rajahmundry, Andhra Pradesh, 533103'}
                   </p>
-                  <p className="text-xs text-slate-400 font-semibold">Date: {selectedBill.date}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Phone: {hospitalSettings?.contactPhone || '+91 883 244 5566'} | Reg: {hospitalSettings?.licenseNumber || 'AP-MED-ROH-2026-981'}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs font-bold text-hospital-600 bg-hospital-50 border border-hospital-100 px-3 py-1 rounded-full uppercase tracking-wider inline-block">
+                    Official Receipt
+                  </span>
+                  <p className="text-sm font-extrabold text-slate-800 mt-2 font-mono">{selectedBill.invoiceNo}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{selectedBill.date}</p>
                 </div>
               </div>
 
@@ -553,13 +605,15 @@ const Billing = () => {
                   <span>Sub Total:</span>
                   <span className="text-slate-800">₹{selectedBill.subTotal}</span>
                 </div>
+                {selectedBill.discount > 0 && (
+                  <div className="flex w-64 justify-between text-red-500">
+                    <span>Discount:</span>
+                    <span>-₹{selectedBill.discount}</span>
+                  </div>
+                )}
                 <div className="flex w-64 justify-between">
-                  <span>CGST/SGST (5%):</span>
+                  <span>GST ({gstRate}%):</span>
                   <span className="text-slate-800">₹{selectedBill.tax}</span>
-                </div>
-                <div className="flex w-64 justify-between text-red-500">
-                  <span>Discount:</span>
-                  <span>-₹{selectedBill.discount}</span>
                 </div>
                 <div className="flex w-64 justify-between text-sm font-extrabold text-slate-800 border-t pt-2 mt-1">
                   <span>Grand Total:</span>
@@ -568,26 +622,26 @@ const Billing = () => {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setIsInvoiceOpen(false)}
-                className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-500 hover:bg-slate-50 cursor-pointer"
-              >
-                Close Receipt
-              </button>
+            <div className="flex justify-end gap-3">
               <button
                 type="button"
                 onClick={triggerPrint}
-                className="px-4 py-2.5 rounded-xl bg-slate-800 text-xs font-bold text-white hover:bg-slate-900 shadow-premium flex items-center gap-1.5 cursor-pointer"
+                className="rounded-xl border border-slate-200 py-2.5 px-4 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5 cursor-pointer"
               >
                 <Printer className="h-4 w-4" />
                 <span>Print Invoice</span>
               </button>
+              <button
+                type="button"
+                onClick={() => setIsInvoiceOpen(false)}
+                className="rounded-xl bg-slate-900 hover:bg-black py-2.5 px-5 text-xs font-bold text-white cursor-pointer"
+              >
+                Close
+              </button>
             </div>
           </div>
-        )}
-      </Modal>
+        </Modal>
+      )}
     </div>
   );
 };

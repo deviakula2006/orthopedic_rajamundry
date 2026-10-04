@@ -18,8 +18,12 @@ const Investigations = () => {
   const handleOpenEdit = (inv) => { setSelectedInv(inv);  setIsModalOpen(true); };
   const triggerDelete  = (id)  => { setSelectedTestId(id); setDeleteConfirmOpen(true); };
 
-  const handleConfirmDelete = () => {
-    if (selectedTestId) { deleteInvestigation(selectedTestId); setSelectedTestId(''); }
+  const handleConfirmDelete = async () => {
+    if (selectedTestId) {
+      await deleteInvestigation(selectedTestId);
+      setSelectedTestId('');
+      setDeleteConfirmOpen(false);
+    }
   };
 
   const columns = [
@@ -34,6 +38,18 @@ const Investigations = () => {
     {
       key: 'testName', header: 'Investigation / Test Name', sortable: true,
       render: row => <span style={{ fontWeight: 700, color: '#0f172a' }}>{row.testName}</span>
+    },
+    {
+      key: 'category', header: 'Category', sortable: true,
+      render: row => (
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', padding: '2px 8px',
+          borderRadius: 6, fontSize: '0.75rem', fontWeight: 600,
+          background: '#f1f5f9', color: '#334155', border: '1px solid #e2e8f0'
+        }}>
+          {row.category || 'General'}
+        </span>
+      )
     },
     {
       key: 'price', header: 'Price (INR)', sortable: true,

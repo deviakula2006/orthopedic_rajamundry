@@ -56,10 +56,31 @@ const PatientProfile = () => {
   const contextPatient = patients.find((p) => p.id === patientId || p.dbId === patientId);
   const patient = patientData || contextPatient;
 
-  // Active doctor appointment
-  const activeApt = appointments.find(
-    (a) => (a.patientId === patientId || a.patientId === patient?.id) && a.status !== 'Completed' && a.status !== 'Cancelled'
+  // --- Appointment selection ---
+  // All appointments belonging to this patient, matched by DB UUID (patientDbId)
+  // with code-based fallbacks for safety.
+  const patientApts = appointments.filter(
+    (a) =>
+      a.patientDbId === patientId ||
+      a.patientId === patientId ||
+      a.patientId === patient?.id
   );
+
+  // Genuinely active appointment (not Completed / Cancelled).
+  // Used to gate action buttons (Start Consultation, Mark Completed).
+  const activeApt = patientApts.find(
+    (a) => a.status !== 'Completed' && a.status !== 'Cancelled'
+  );
+
+  // Appointment to display in the summary card:
+  //   1. Active appointment (if one exists), OR
+  //   2. Most recent appointment (including Completed) — so past visits are visible.
+  const displayApt =
+    activeApt ||
+    [...patientApts].sort(
+      (a, b) => new Date(b.date) - new Date(a.date)
+    )[0] ||
+    null;
 
   const loadPatientProfile = useCallback(() => {
     if (!patientId) return;
@@ -312,31 +333,31 @@ const PatientProfile = () => {
         <div>
           <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Appointment Date</span>
           <span className="text-xs font-black text-slate-700 mt-1 block">
-            {activeApt ? formatDateWithHyphen(activeApt.date) : 'No active appointments today'}
+            {displayApt ? formatDateWithHyphen(displayApt.date) : 'No appointments found'}
           </span>
         </div>
         <div>
           <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Time Slot</span>
           <span className="text-xs font-black text-slate-700 mt-1 block">
-            {activeApt ? activeApt.time : '--'}
+            {displayApt ? displayApt.time : '--'}
           </span>
         </div>
         <div>
           <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Type</span>
           <span className="text-xs font-black text-slate-700 mt-1 block">
-            {activeApt ? activeApt.type : '--'}
+            {displayApt ? displayApt.type : '--'}
           </span>
         </div>
         <div>
           <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Assigned Doctor</span>
           <span className="text-xs font-black text-slate-700 mt-1 block">
-            {activeApt ? activeApt.doctorName : '--'}
+            {displayApt ? displayApt.doctorName : '--'}
           </span>
         </div>
         <div>
           <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Status</span>
           <div className="mt-1 block">
-            {activeApt ? <StatusBadge status={activeApt.status} /> : '--'}
+            {displayApt ? <StatusBadge status={displayApt.status} /> : '--'}
           </div>
         </div>
       </div>

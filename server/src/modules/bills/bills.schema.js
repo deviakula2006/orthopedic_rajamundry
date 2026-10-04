@@ -3,14 +3,15 @@ import { z } from 'zod';
 const BILL_TYPE = ['OPD', 'IPD', 'Pharmacy', 'Lab'];
 const PAYMENT_MODE = ['Cash', 'Card', 'UPI', 'Insurance', 'Net Banking'];
 const PAYMENT_STATUS = ['Paid', 'Pending', 'Partially Paid', 'Refunded'];
-const BILL_ITEM_TYPE = ['Consultation', 'Investigation', 'Therapy', 'Pharmacy', 'Room Rent', 'Procedure', 'Other'];
+const BILL_ITEM_TYPE = ['Consultation', 'Investigation', 'Therapy', 'Follow Up', 'Pharmacy', 'Room Rent', 'Procedure', 'Other'];
 
 const billItemSchema = z.object({
   description: z.string().min(1).max(200),
   itemType: z.enum(BILL_ITEM_TYPE),
   quantity: z.coerce.number().int().positive().optional(),
   amount: z.coerce.number().nonnegative(),
-  investigationId: z.string().uuid().optional()
+  investigationId: z.string().uuid().optional(),
+  appointmentTypeId: z.string().uuid().optional()
 });
 
 export const createBillSchema = z.object({

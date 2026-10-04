@@ -1,5 +1,8 @@
 import { withTransaction } from '../../config/db.js';
 import * as billsRepository from './bills.repository.js';
+import * as patientsRepository from '../patients/patients.repository.js';
+import * as doctorsRepository from '../doctors/doctors.repository.js';
+import * as hospitalSettingsRepository from '../hospitalSettings/hospitalSettings.repository.js';
 import { serializeBill } from './bills.serializer.js';
 import { logActivity } from '../activities/activities.repository.js';
 import { buildMeta } from '../../utils/pagination.js';
@@ -18,14 +21,29 @@ export async function getBill(id) {
 }
 
 export async function createBill(data, actor) {
-  const { items, discount = 0, tax = 0 } = data;
+  const { items, discount = 0 } = data;
+
+  const patient = await patientsRepository.findById(data.patientId);
+  if (!patient) throw ApiError.notFound('Patient not found');
+
+  if (data.doctorId) {
+    const doctor = await doctorsRepository.findById(data.doctorId);
+    if (!doctor) throw ApiError.notFound('Doctor not found');
+  }
+
+  // Retrieve configured GST rate from hospital settings
+  const settings = await hospitalSettingsRepository.get();
+  const configuredGstRate = Number(settings?.gst_rate ?? 0);
 
   // Sub-total and total are always derived from line items server-side —
   // never trusted from the client — so a tampered request body can't
   // produce an invoice whose total doesn't match its items.
   const subTotal = items.reduce((sum, item) => sum + item.amount * (item.quantity ?? 1), 0);
-  const total = subTotal - discount + tax;
-  if (total < 0) throw ApiError.badRequest('Discount cannot exceed subtotal plus tax');
+  const taxableAmount = Math.max(0, subTotal - discount);
+  const calculatedTax = Math.round(taxableAmount * (configuredGstRate / 100) * 100) / 100;
+  const tax = calculatedTax;
+  const total = taxableAmount + tax;
+  if (total < 0) throw ApiError.badRequest('Discount cannot exceed subtotal');
 
   const result = await withTransaction(async (client) => {
     const header = await billsRepository.createBillHeader(

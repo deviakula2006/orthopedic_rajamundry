@@ -12,31 +12,53 @@ import { motion, AnimatePresence } from 'framer-motion';
  */
 const MENU_WIDTH = 176; // px — keep in sync with minWidth below
 
-const ThreeDotMenu = ({ options }) => {
-  const [isOpen, setIsOpen]   = useState(false);
-  const [coords, setCoords]   = useState({ top: 0, left: 0 });
-  const btnRef                = useRef(null);
+const ThreeDotMenu = ({ options = [] }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [coords, setCoords] = useState({ top: 0, left: 0 });
+  const btnRef = useRef(null);
+  const menuRef = useRef(null);
 
   /* ── Close on outside click ── */
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e) => {
-      if (btnRef.current && !btnRef.current.contains(e.target)) setIsOpen(false);
+      if (
+        btnRef.current && !btnRef.current.contains(e.target) &&
+        menuRef.current && !menuRef.current.contains(e.target)
+      ) {
+        setIsOpen(false);
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [isOpen]);
 
-  /* ── Close on scroll ── */
+  /* ── Close on Escape key ── */
   useEffect(() => {
     if (!isOpen) return;
-    const handler = () => setIsOpen(false);
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
+  /* ── Close on scroll outside menu ── */
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e) => {
+      if (menuRef.current && menuRef.current.contains(e.target)) return;
+      setIsOpen(false);
+    };
     window.addEventListener('scroll', handler, true);
     return () => window.removeEventListener('scroll', handler, true);
   }, [isOpen]);
 
   /* ── Recompute position when opening ── */
-  const handleToggle = useCallback(() => {
+  const handleToggle = useCallback((e) => {
+    e.stopPropagation();
     if (!isOpen && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
       // Flip left if would overflow right edge of viewport
@@ -56,6 +78,7 @@ const ThreeDotMenu = ({ options }) => {
       {/* Trigger button */}
       <button
         ref={btnRef}
+        type="button"
         onClick={handleToggle}
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -76,6 +99,7 @@ const ThreeDotMenu = ({ options }) => {
           e.currentTarget.style.borderColor   = 'transparent';
           e.currentTarget.style.color         = '#9ca3af';
         }}
+        aria-label="Appointment Actions"
       >
         <MoreHorizontal style={{ width: 15, height: 15 }} />
       </button>
@@ -85,6 +109,7 @@ const ThreeDotMenu = ({ options }) => {
         <AnimatePresence>
           {isOpen && (
             <motion.div
+              ref={menuRef}
               initial={{ opacity: 0, scale: 0.94, y: -4 }}
               animate={{ opacity: 1, scale: 1,    y: 0  }}
               exit={{   opacity: 0, scale: 0.94, y: -4  }}
@@ -107,7 +132,14 @@ const ThreeDotMenu = ({ options }) => {
                 return (
                   <button
                     key={idx}
-                    onClick={() => { setIsOpen(false); opt.onClick(); }}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsOpen(false);
+                      if (opt.onClick) {
+                        opt.onClick();
+                      }
+                    }}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 8,
                       padding: '7px 10px', borderRadius: 6, width: '100%',

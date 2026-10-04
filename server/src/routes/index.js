@@ -12,6 +12,7 @@ import { dashboardRouter } from '../modules/dashboard/dashboard.routes.js';
 import { hospitalSettingsRouter } from '../modules/hospitalSettings/hospitalSettings.routes.js';
 import { reportsRouter } from '../modules/reports/reports.routes.js';
 import { consultationsRouter } from '../modules/consultations/consultations.routes.js';
+import { appointmentTypesRouter } from '../modules/appointmentTypes/appointmentTypes.routes.js';
 
 export const apiRouter = Router();
 
@@ -22,6 +23,7 @@ apiRouter.use('/receptionists', receptionistsRouter);
 apiRouter.use('/investigations', investigationsRouter);
 apiRouter.use('/bed-management', bedManagementRouter);
 apiRouter.use('/appointments', appointmentsRouter);
+apiRouter.use('/appointment-types', appointmentTypesRouter);
 apiRouter.use('/bills', billsRouter);
 apiRouter.use('/activities', activitiesRouter);
 apiRouter.use('/dashboard', dashboardRouter);

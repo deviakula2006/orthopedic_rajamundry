@@ -3,6 +3,8 @@ import { buildSetClause } from '../../utils/sqlUpdate.js';
 
 const BASE_SELECT = `
   a.id, a.appointment_code, a.appointment_date, a.appointment_time, a.type, a.status, a.fee, a.notes,
+  a.patient_type, a.appointment_type_id,
+  at.name AS appointment_type_name, at.code AS appointment_type_code,
   a.created_at, a.updated_at,
   p.id AS patient_id, p.patient_code, p.name AS patient_name, p.phone AS patient_phone,
   d.id AS doctor_id, d.doctor_code, d.name AS doctor_name
@@ -12,6 +14,7 @@ const BASE_FROM = `
   FROM appointments a
   JOIN patients p ON p.id = a.patient_id
   JOIN doctors d ON d.id = a.doctor_id
+  LEFT JOIN appointment_types at ON at.id = a.appointment_type_id
 `;
 
 export async function list({ limit, offset, patientId, doctorId, date, status }) {
@@ -58,12 +61,32 @@ export async function findById(id, client = { query }) {
   return rows[0] ?? null;
 }
 
-export async function create({ patientId, doctorId, appointmentDate, appointmentTime, type, fee, notes }) {
+export async function create({
+  patientId,
+  doctorId,
+  appointmentDate,
+  appointmentTime,
+  type,
+  fee,
+  notes,
+  patientType = 'Outpatient',
+  appointmentTypeId = null
+}) {
   const { rows } = await query(
-    `INSERT INTO appointments (patient_id, doctor_id, appointment_date, appointment_time, type, fee, notes)
-     VALUES ($1, $2, $3, $4, COALESCE($5, 'Consultation')::appointment_type, COALESCE($6, 0), $7)
+    `INSERT INTO appointments (patient_id, doctor_id, appointment_date, appointment_time, type, fee, notes, patient_type, appointment_type_id)
+     VALUES ($1, $2, $3, $4, COALESCE($5, 'Consultation')::appointment_type, COALESCE($6, 0), $7, $8, $9)
      RETURNING id`,
-    [patientId, doctorId, appointmentDate, appointmentTime, type ?? null, fee ?? null, notes ?? null]
+    [
+      patientId,
+      doctorId,
+      appointmentDate,
+      appointmentTime,
+      type ?? null,
+      fee ?? null,
+      notes ?? null,
+      patientType,
+      appointmentTypeId
+    ]
   );
   return findById(rows[0].id);
 }
@@ -85,7 +108,9 @@ export async function update(id, fields, client = { query }) {
     type: fields.type,
     fee: fields.fee,
     notes: fields.notes,
-    status: newStatus
+    status: newStatus,
+    patient_type: fields.patientType,
+    appointment_type_id: fields.appointmentTypeId
   });
   if (!clause) return findById(id, client);
 
@@ -107,6 +132,11 @@ export async function updateStatus(id, status, client = { query }) {
 }
 
 export async function deletePermanent(id, client = { query }) {
+  // Delete associated vitals tied to this appointment
+  await client.query(`DELETE FROM vitals WHERE appointment_id = $1`, [id]);
+  // Consultations reference appointment_id ON DELETE RESTRICT (child tables cascade on consultation delete)
+  await client.query(`DELETE FROM consultations WHERE appointment_id = $1`, [id]);
+
   const { rows } = await client.query(
     `DELETE FROM appointments WHERE id = $1 RETURNING id, appointment_code`,
     [id]

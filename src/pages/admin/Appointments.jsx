@@ -47,12 +47,22 @@ const Appointments = () => {
     if (p) { setSelectedPatientId(p.id); setAppointmentModalOpen(true); }
   };
 
-  const handleConfirmDelete = () => {
-    if (selectedAptId) { deleteAppointment(selectedAptId); setSelectedAptId(''); }
+  const handleConfirmDelete = async () => {
+    if (selectedAptId) {
+      await deleteAppointment(selectedAptId);
+      setSelectedAptId('');
+      setSelectedApt(null);
+      setDeleteConfirmOpen(false);
+    }
   };
 
-  const handleConfirmCancel = () => {
-    if (selectedAptId) { updateAppointmentStatus(selectedAptId, 'Cancelled'); setSelectedAptId(''); }
+  const handleConfirmCancel = async () => {
+    if (selectedAptId) {
+      await updateAppointmentStatus(selectedAptId, 'Cancelled');
+      setSelectedAptId('');
+      setSelectedApt(null);
+      setCancelConfirmOpen(false);
+    }
   };
 
   const filteredAppointments = useMemo(() => {
@@ -116,6 +126,23 @@ const Appointments = () => {
       render: row => (
         <span style={{ display: 'inline-block', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 5, padding: '2px 8px', fontSize: '0.7rem', fontWeight: 700, color: '#334155' }}>
           {row.type}
+        </span>
+      )
+    },
+    {
+      key: 'patientType', header: 'Patient Type', sortable: true,
+      render: row => (
+        <span style={{
+          display: 'inline-block',
+          background: row.patientType === 'Inpatient' ? '#eff6ff' : '#f0fdf4',
+          border: `1px solid ${row.patientType === 'Inpatient' ? '#bfdbfe' : '#bbf7d0'}`,
+          borderRadius: 5,
+          padding: '2px 8px',
+          fontSize: '0.7rem',
+          fontWeight: 700,
+          color: row.patientType === 'Inpatient' ? '#1d4ed8' : '#15803d'
+        }}>
+          {row.patientType === 'Inpatient' ? 'IPD (Inpatient)' : 'OPD (Outpatient)'}
         </span>
       )
     },
@@ -184,7 +211,10 @@ const Appointments = () => {
               value={selectedPatientId}
               onChange={(val) => {
                 setSelectedPatientId(val);
-                if (val) setAppointmentModalOpen(true);
+                if (val) {
+                  setSelectedApt(null);
+                  setAppointmentModalOpen(true);
+                }
               }}
               placeholder="Search by patient name or ID…"
               displayKey="name"
@@ -258,11 +288,53 @@ const Appointments = () => {
           actions={row => (
             <ThreeDotMenu
               options={[
-                { label: 'Reschedule / Edit', icon: Edit,       onClick: () => { setSelectedApt(row); setAppointmentModalOpen(true); } },
-                { label: 'Add Vitals',        icon: HeartPulse, onClick: () => { setSelectedPatientId(row.patientId); setVitalsOpen(true); } },
-                { label: 'Add Investigation', icon: Activity,   onClick: () => { setSelectedPatientId(row.patientId); setOrderOpen(true); } },
-                { label: 'Cancel',            icon: ShieldAlert, destructive: true, onClick: () => { setSelectedAptId(row.id); setCancelConfirmOpen(true); } },
-                { label: 'Delete',            icon: Trash2,     destructive: true, onClick: () => { setSelectedAptId(row.id); setDeleteConfirmOpen(true); } },
+                {
+                  label: 'Reschedule / Edit',
+                  icon: Edit,
+                  onClick: () => {
+                    setSelectedApt(row);
+                    setSelectedPatientId(row.patientId);
+                    setAppointmentModalOpen(true);
+                  }
+                },
+                {
+                  label: 'Add Vitals',
+                  icon: HeartPulse,
+                  onClick: () => {
+                    setSelectedApt(row);
+                    setSelectedPatientId(row.patientId);
+                    setVitalsOpen(true);
+                  }
+                },
+                {
+                  label: 'Add Investigation',
+                  icon: Activity,
+                  onClick: () => {
+                    setSelectedApt(row);
+                    setSelectedPatientId(row.patientId);
+                    setOrderOpen(true);
+                  }
+                },
+                {
+                  label: 'Cancel',
+                  icon: ShieldAlert,
+                  destructive: true,
+                  onClick: () => {
+                    setSelectedApt(row);
+                    setSelectedAptId(row.id);
+                    setCancelConfirmOpen(true);
+                  }
+                },
+                {
+                  label: 'Delete',
+                  icon: Trash2,
+                  destructive: true,
+                  onClick: () => {
+                    setSelectedApt(row);
+                    setSelectedAptId(row.id);
+                    setDeleteConfirmOpen(true);
+                  }
+                },
               ]}
             />
           )}
@@ -270,18 +342,69 @@ const Appointments = () => {
       </div>
 
       {/* ─── Modals ──────────────────────────────────── */}
-      <PatientModal     isOpen={patientModalOpen}     onClose={() => setPatientModalOpen(false)}     onSave={handleSavePatient} />
-      <AppointmentModal isOpen={appointmentModalOpen} onClose={() => setAppointmentModalOpen(false)} appointment={selectedApt}  initialPatientId={selectedPatientId} />
-      <AddVitalsModal   isOpen={vitalsOpen}           onClose={() => setVitalsOpen(false)}           patientId={selectedPatientId} />
-      <OrderInvestigationModal isOpen={orderOpen}     onClose={() => setOrderOpen(false)}            patientId={selectedPatientId} />
+      <PatientModal
+        isOpen={patientModalOpen}
+        onClose={() => setPatientModalOpen(false)}
+        onSave={handleSavePatient}
+      />
 
-      <ConfirmationModal isOpen={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)}
-        onConfirm={handleConfirmDelete} title="Delete Appointment"
-        message="Permanently delete this appointment record?" confirmText="Delete" type="danger" />
+      <AppointmentModal
+        isOpen={appointmentModalOpen}
+        onClose={() => {
+          setAppointmentModalOpen(false);
+          setSelectedApt(null);
+        }}
+        appointment={selectedApt}
+        initialPatientId={selectedPatientId}
+      />
 
-      <ConfirmationModal isOpen={cancelConfirmOpen} onClose={() => setCancelConfirmOpen(false)}
-        onConfirm={handleConfirmCancel} title="Cancel Appointment"
-        message="Cancel this scheduled appointment? The slot will be freed immediately." confirmText="Cancel Appointment" type="warning" />
+      <AddVitalsModal
+        isOpen={vitalsOpen}
+        onClose={() => {
+          setVitalsOpen(false);
+          setSelectedApt(null);
+        }}
+        patientId={selectedPatientId}
+        appointment={selectedApt}
+      />
+
+      <OrderInvestigationModal
+        isOpen={orderOpen}
+        onClose={() => {
+          setOrderOpen(false);
+          setSelectedApt(null);
+        }}
+        patientId={selectedPatientId}
+        appointment={selectedApt}
+      />
+
+      <ConfirmationModal
+        isOpen={deleteConfirmOpen}
+        onClose={() => {
+          setDeleteConfirmOpen(false);
+          setSelectedApt(null);
+          setSelectedAptId('');
+        }}
+        onConfirm={handleConfirmDelete}
+        title="Delete Appointment"
+        message={selectedApt ? `Permanently delete appointment ${selectedApt.id} for ${selectedApt.patientName}? This action cannot be undone.` : "Permanently delete this appointment record?"}
+        confirmText="Delete"
+        type="danger"
+      />
+
+      <ConfirmationModal
+        isOpen={cancelConfirmOpen}
+        onClose={() => {
+          setCancelConfirmOpen(false);
+          setSelectedApt(null);
+          setSelectedAptId('');
+        }}
+        onConfirm={handleConfirmCancel}
+        title="Cancel Appointment"
+        message={selectedApt ? `Cancel appointment ${selectedApt.id} for ${selectedApt.patientName}? The scheduled slot will be freed.` : "Cancel this scheduled appointment? The slot will be freed immediately."}
+        confirmText="Cancel Appointment"
+        type="warning"
+      />
     </div>
   );
 };

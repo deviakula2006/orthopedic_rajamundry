@@ -56,7 +56,7 @@ consultationsRouter.post(
 
 consultationsRouter.post(
   '/investigations',
-  requireRole('Doctor', 'Admin'),
+  requireRole('Admin', 'Receptionist', 'Doctor'),
   validate({ body: orderInvestigationSchema }),
   controller.orderInvestigation
 );

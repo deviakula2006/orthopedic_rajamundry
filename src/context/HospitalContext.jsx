@@ -752,19 +752,28 @@ const adaptAppointment = (row) => ({
   id: row.code,
   dbId: row.id,
 
+  // Human-readable patient code (e.g. "PT0001") — kept for backward compatibility
   patientId: row.patient?.code,
+  patientCode: row.patient?.code,
+
+  // PostgreSQL UUID — use this for reliable matching when the route param is a UUID
+  patientDbId: row.patient?.id,
+
   patientName: row.patient?.name,
 
   doctorId: row.doctor?.code,
+  doctorDbId: row.doctor?.id,
   doctorName: row.doctor?.name,
 
   date: row.date,
 
   time: row.time
-    ? convertTo12Hour(row.time.slice(0, 5))
+    ? (row.time.includes('M') ? row.time : convertTo12Hour(row.time.slice(0, 5)))
     : '',
 
   type: row.type,
+  patientType: row.patientType || 'Outpatient',
+  appointmentTypeId: row.appointmentTypeId || null,
   status: row.status,
   fee: row.fee
 });
@@ -835,6 +844,7 @@ export const HospitalProvider = ({ children }) => {
   const [receptionists, setReceptionists] = useState([]);
   const [investigations, setInvestigations] = useState([]);
   const [appointments, setAppointments] = useState([]);
+  const [appointmentTypes, setAppointmentTypes] = useState([]);
   // beds state removed — bed management is self-contained in the BedManagement page
   const [bills, setBills] = useState([]);
   const [activities, setActivities] = useState([]);
@@ -938,7 +948,7 @@ export const HospitalProvider = ({ children }) => {
         receptionistsResponse,
         investigationsResponse,
         appointmentsResponse,
-
+        appointmentTypesResponse,
         billsResponse,
         hospitalSettingsResponse
       ] = await Promise.all([
@@ -947,7 +957,7 @@ export const HospitalProvider = ({ children }) => {
         apiClient.get('/receptionists', LIST_ALL),
         apiClient.get('/investigations', LIST_ALL),
         apiClient.get('/appointments', LIST_ALL),
-
+        apiClient.get('/appointment-types'),
         apiClient.get('/bills', LIST_ALL),
         apiClient.get('/hospital-settings')
       ]);
@@ -976,6 +986,10 @@ export const HospitalProvider = ({ children }) => {
         appointmentsResponse.data.data.map(
           adaptAppointment
         )
+      );
+
+      setAppointmentTypes(
+        appointmentTypesResponse.data.data || []
       );
 
       setBills(
@@ -1012,7 +1026,7 @@ export const HospitalProvider = ({ children }) => {
           setReceptionists([]);
           setInvestigations([]);
           setAppointments([]);
-
+          setAppointmentTypes([]);
           setBills([]);
           setActivities([]);
           setHospitalSettings(null);
@@ -1928,12 +1942,12 @@ const toggleDoctorStatus = async (code) => {
   ) => {
     const patient = patients.find(
       (item) =>
-        item.id === appointment.patientId
+        item.id === appointment.patientId || item.dbId === appointment.patientId || item.code === appointment.patientId
     );
 
     const doctor = doctors.find(
       (item) =>
-        item.id === appointment.doctorId
+        item.id === appointment.doctorId || item.dbId === appointment.doctorId || item.code === appointment.doctorId
     );
 
     if (!patient || !doctor) {
@@ -1954,8 +1968,10 @@ const toggleDoctorStatus = async (code) => {
           appointmentDate:
             appointment.date,
           appointmentTime:
-            convertTo24Hour(appointment.time),
+            appointment.time,
           type: appointment.type,
+          patientType: appointment.patientType || 'Outpatient',
+          appointmentTypeId: appointment.appointmentTypeId || undefined,
           fee: appointment.fee
         }
       );
@@ -1973,7 +1989,7 @@ const toggleDoctorStatus = async (code) => {
         'Appointment scheduled successfully!'
       );
 
-      refreshActivities();
+      await Promise.all([fetchAll(), refreshActivities()]);
 
       return created;
     } catch (error) {
@@ -1992,21 +2008,22 @@ const toggleDoctorStatus = async (code) => {
   ) => {
     const target = appointments.find(
       (appointment) =>
-        appointment.id === code
+        appointment.id === code || appointment.dbId === code
     );
 
     const patient = patients.find(
       (item) =>
-        item.id === updatedAppointment.patientId
+        item.id === updatedAppointment.patientId || item.dbId === updatedAppointment.patientId || item.code === updatedAppointment.patientId
     );
 
     const doctor = doctors.find(
       (item) =>
-        item.id === updatedAppointment.doctorId
+        item.id === updatedAppointment.doctorId || item.dbId === updatedAppointment.doctorId || item.code === updatedAppointment.doctorId
     );
 
     if (!target || !patient || !doctor) {
-      return;
+      showToast('Select a valid patient and doctor.', 'error');
+      return false;
     }
 
     try {
@@ -2018,8 +2035,10 @@ const toggleDoctorStatus = async (code) => {
           appointmentDate:
             updatedAppointment.date,
           appointmentTime:
-            convertTo24Hour(updatedAppointment.time),
+            updatedAppointment.time,
           type: updatedAppointment.type,
+          patientType: updatedAppointment.patientType || 'Outpatient',
+          appointmentTypeId: updatedAppointment.appointmentTypeId || undefined,
           fee: updatedAppointment.fee
         }
       );
@@ -2030,7 +2049,7 @@ const toggleDoctorStatus = async (code) => {
 
       setAppointments((prev) =>
         prev.map((appointment) =>
-          appointment.id === code
+          appointment.id === code || appointment.dbId === target.dbId
             ? saved
             : appointment
         )
@@ -2040,12 +2059,14 @@ const toggleDoctorStatus = async (code) => {
         'Appointment details updated!'
       );
 
-      refreshActivities();
+      await Promise.all([fetchAll(), refreshActivities()]);
+      return true;
     } catch (error) {
       reportError(
         error,
         'Failed to update appointment'
       );
+      return false;
     }
   };
 
@@ -2055,11 +2076,12 @@ const toggleDoctorStatus = async (code) => {
   ) => {
     const target = appointments.find(
       (appointment) =>
-        appointment.id === code
+        appointment.id === code || appointment.dbId === code
     );
 
     if (!target) {
-      return;
+      showToast('Appointment not found.', 'error');
+      return false;
     }
 
     try {
@@ -2076,7 +2098,7 @@ const toggleDoctorStatus = async (code) => {
 
       setAppointments((prev) =>
         prev.map((appointment) =>
-          appointment.id === code
+          appointment.id === code || appointment.dbId === target.dbId
             ? saved
             : appointment
         )
@@ -2086,32 +2108,91 @@ const toggleDoctorStatus = async (code) => {
         `Appointment status changed to ${status}`
       );
 
-      refreshActivities();
+      await Promise.all([fetchAll(), refreshActivities()]);
+      return true;
     } catch (error) {
       reportError(
         error,
         'Failed to update appointment status'
       );
+      return false;
     }
   };
 
   const deleteAppointment = async (code) => {
     const target = appointments.find(
       (appointment) =>
-        appointment.id === code
+        appointment.id === code || appointment.dbId === code
     );
 
     if (!target) {
-      return;
+      showToast('Appointment not found.', 'error');
+      return false;
     }
 
     try {
       await apiClient.delete(`/appointments/${target.dbId}`);
       setAppointments((prev) => prev.filter((a) => a.id !== code && a.dbId !== target.dbId));
       showToast('Appointment record permanently deleted.', 'warning');
-      refreshActivities();
+      await Promise.all([fetchAll(), refreshActivities()]);
+      return true;
     } catch (err) {
-      showToast(err.response?.data?.message || 'Failed to delete appointment', 'error');
+      reportError(err, 'Failed to delete appointment');
+      return false;
+    }
+  };
+
+  /* ==========================================================================
+     APPOINTMENT TYPES (ADMIN CONFIGURABLE)
+  ========================================================================== */
+
+  const addAppointmentType = async (typeData) => {
+    try {
+      const response = await apiClient.post('/appointment-types', {
+        name: typeData.name,
+        defaultFee: Number(typeData.defaultFee ?? 0),
+        isActive: typeData.isActive !== false
+      });
+      const created = response.data.data;
+      setAppointmentTypes((prev) => [...prev, created]);
+      showToast(`Appointment type "${created.name}" created!`);
+      await Promise.all([fetchAll(), refreshActivities()]);
+      return created;
+    } catch (error) {
+      reportError(error, 'Failed to create appointment type');
+      return undefined;
+    }
+  };
+
+  const updateAppointmentType = async (id, typeData) => {
+    try {
+      const response = await apiClient.put(`/appointment-types/${id}`, {
+        name: typeData.name,
+        defaultFee: typeData.defaultFee !== undefined ? Number(typeData.defaultFee) : undefined,
+        isActive: typeData.isActive
+      });
+      const updated = response.data.data;
+      setAppointmentTypes((prev) => prev.map((t) => (t.id === id ? updated : t)));
+      showToast(`Appointment type "${updated.name}" updated!`);
+      await Promise.all([fetchAll(), refreshActivities()]);
+      return updated;
+    } catch (error) {
+      reportError(error, 'Failed to update appointment type');
+      return undefined;
+    }
+  };
+
+  const toggleAppointmentTypeStatus = async (id) => {
+    try {
+      const response = await apiClient.patch(`/appointment-types/${id}/status`);
+      const updated = response.data.data;
+      setAppointmentTypes((prev) => prev.map((t) => (t.id === id ? updated : t)));
+      showToast(`Appointment type "${updated.name}" is now ${updated.isActive ? 'Active' : 'Inactive'}`);
+      await Promise.all([fetchAll(), refreshActivities()]);
+      return updated;
+    } catch (error) {
+      reportError(error, 'Failed to toggle appointment type status');
+      return undefined;
     }
   };
 
@@ -2147,61 +2228,94 @@ const toggleDoctorStatus = async (code) => {
     }
   }, [patients, doctors]);
 
-  const addVitals = async (patientId, vitals) => {
-    const targetPatient = patients.find(p => p.id === patientId || p.dbId === patientId);
+  const addVitals = async (patientId, vitals, appointmentParam = null) => {
+    const targetPatient = patients.find(p => p.id === patientId || p.dbId === patientId || p.code === patientId);
     const targetPatientId = targetPatient ? targetPatient.dbId : patientId;
 
-    const activeApt = appointments.find(
-      a => (a.patientId === patientId || a.patientId === targetPatient?.code) && a.status !== 'Completed' && a.status !== 'Cancelled'
-    );
+    let aptDbId = appointmentParam?.dbId;
+    if (!aptDbId && appointmentParam?.id) {
+      const match = appointments.find(a => a.id === appointmentParam.id || a.dbId === appointmentParam.id);
+      if (match) aptDbId = match.dbId;
+    }
+    if (!aptDbId) {
+      const activeApt = appointments.find(
+        a => (a.patientId === patientId || a.patientId === targetPatient?.code || a.patientId === targetPatient?.id) &&
+             a.status !== 'Completed' && a.status !== 'Cancelled'
+      );
+      if (activeApt) aptDbId = activeApt.dbId;
+    }
 
     try {
       let bpSystolic, bpDiastolic;
-      if (vitals.bp && vitals.bp.includes('/')) {
+      if (vitals.bp && typeof vitals.bp === 'string' && vitals.bp.includes('/')) {
         const parts = vitals.bp.split('/');
-        bpSystolic = parseInt(parts[0], 10) || undefined;
-        bpDiastolic = parseInt(parts[1], 10) || undefined;
+        const s = parseInt(parts[0].trim(), 10);
+        const d = parseInt(parts[1].trim(), 10);
+        if (!isNaN(s)) bpSystolic = s;
+        if (!isNaN(d)) bpDiastolic = d;
       }
 
-      await apiClient.post('/consultations/vitals', {
+      const parseNum = (val, isFloat = false) => {
+        if (val === undefined || val === null || val === '') return undefined;
+        const n = isFloat ? parseFloat(val) : parseInt(val, 10);
+        return isNaN(n) ? undefined : n;
+      };
+
+      const payload = {
         patientId: targetPatientId,
-        appointmentId: activeApt ? activeApt.dbId : undefined,
+        appointmentId: aptDbId || undefined,
         bpSystolic,
         bpDiastolic,
         bpText: vitals.bp || undefined,
-        pulse: vitals.pulse ? parseInt(vitals.pulse, 10) : undefined,
-        temperature: vitals.temp ? parseFloat(vitals.temp) : undefined,
-        weight: vitals.weight ? parseFloat(vitals.weight) : undefined,
-        height: vitals.height ? parseFloat(vitals.height) : undefined,
-        spo2: vitals.spo2 ? parseInt(vitals.spo2, 10) : undefined,
-        bloodSugar: vitals.sugar ? parseInt(vitals.sugar, 10) : undefined,
-        bmi: vitals.bmi ? parseFloat(vitals.bmi) : undefined
+        pulse: parseNum(vitals.pulse),
+        temperature: parseNum(vitals.temp, true),
+        weight: parseNum(vitals.weight, true),
+        height: parseNum(vitals.height, true),
+        spo2: parseNum(vitals.spo2),
+        bloodSugar: parseNum(vitals.sugar),
+        bmi: parseNum(vitals.bmi, true)
+      };
+
+      // Strip any undefined keys so JSON body is cleanly typed
+      Object.keys(payload).forEach(key => {
+        if (payload[key] === undefined) delete payload[key];
       });
 
+      await apiClient.post('/consultations/vitals', payload);
+
       showToast('Vitals recorded successfully!');
-      await fetchAll();
+      await Promise.all([fetchAll(), refreshActivities()]);
+      return true;
     } catch (error) {
       reportError(error, 'Failed to record vitals');
+      return false;
     }
   };
 
-  const orderInvestigation = async (patientId, test) => {
-    const targetPatient = patients.find(p => p.id === patientId || p.dbId === patientId);
+  const orderInvestigation = async (patientId, test, appointmentParam = null) => {
+    const targetPatient = patients.find(p => p.id === patientId || p.dbId === patientId || p.code === patientId);
 
-    const activeApt = appointments.find(
-      a => (a.patientId === patientId || a.patientId === targetPatient?.code) && a.status !== 'Completed' && a.status !== 'Cancelled'
-    );
+    let activeApt = appointmentParam;
+    if (activeApt && !activeApt.dbId) {
+      activeApt = appointments.find(a => a.id === activeApt.id || a.dbId === activeApt.id);
+    }
+    if (!activeApt) {
+      activeApt = appointments.find(
+        a => (a.patientId === patientId || a.patientId === targetPatient?.code || a.patientId === targetPatient?.id) &&
+             a.status !== 'Completed' && a.status !== 'Cancelled'
+      );
+    }
 
     if (!activeApt) {
       showToast('No active appointment slot for this patient.', 'error');
-      return;
+      return false;
     }
 
     try {
       const consRes = await apiClient.get(`/consultations/appointment/${activeApt.dbId}`);
       const consId = consRes.data.data.id;
 
-      const inv = investigations.find(i => i.id === test.id || i.testName === test.testName);
+      const inv = investigations.find(i => i.id === test.id || i.testName === test.testName || i.dbId === test.id);
 
       await apiClient.post('/consultations/investigations', {
         consultationId: consId,
@@ -2210,9 +2324,11 @@ const toggleDoctorStatus = async (code) => {
       });
 
       showToast('Investigation ordered successfully!');
-      await fetchAll();
+      await Promise.all([fetchAll(), refreshActivities()]);
+      return true;
     } catch (error) {
       reportError(error, 'Failed to order investigation');
+      return false;
     }
   };
 
@@ -2329,7 +2445,7 @@ const toggleDoctorStatus = async (code) => {
   const addBill = async (bill) => {
     const patient = patients.find(
       (item) =>
-        item.id === bill.patientId
+        item.id === bill.patientId || item.dbId === bill.patientId || item.code === bill.patientId
     );
 
     if (!patient) {
@@ -2343,7 +2459,7 @@ const toggleDoctorStatus = async (code) => {
 
     const doctor = doctors.find(
       (item) =>
-        item.id === bill.doctorId
+        item.id === bill.doctorId || item.dbId === bill.doctorId || item.code === bill.doctorId
     );
 
     try {
@@ -2357,7 +2473,7 @@ const toggleDoctorStatus = async (code) => {
               ? 'OPD'
               : bill.billType === 'Investigations'
               ? 'Lab'
-              : bill.billType,
+              : (bill.billType || 'OPD'),
           paymentMode: bill.paymentMode,
           paymentStatus: bill.paymentStatus,
           discount: bill.discount,
@@ -2369,10 +2485,19 @@ const toggleDoctorStatus = async (code) => {
                 item.description,
 
               itemType:
-                item.type,
+                item.type === 'Follow Up' ? 'Follow Up' : (item.type || 'Consultation'),
 
               amount:
-                item.amount
+                Number(item.amount),
+
+              quantity:
+                item.quantity || 1,
+
+              investigationId:
+                item.investigationId || undefined,
+
+              appointmentTypeId:
+                item.appointmentTypeId || undefined
             })
           )
         }
@@ -2391,7 +2516,7 @@ const toggleDoctorStatus = async (code) => {
         `Invoice ${created.invoiceNo} generated!`
       );
 
-      refreshActivities();
+      await Promise.all([fetchAll(), refreshActivities()]);
 
       return created;
     } catch (error) {
@@ -2474,7 +2599,7 @@ const toggleDoctorStatus = async (code) => {
         `Invoice ${invoiceNo} marked as ${status}`
       );
 
-      refreshActivities();
+      await Promise.all([fetchAll(), refreshActivities()]);
     } catch (error) {
       reportError(
         error,
@@ -2504,7 +2629,7 @@ const toggleDoctorStatus = async (code) => {
         'Hospital organization details saved!'
       );
 
-      refreshActivities();
+      await Promise.all([fetchAll(), refreshActivities()]);
 
       return response.data.data;
     } catch (error) {
@@ -2527,11 +2652,13 @@ const toggleDoctorStatus = async (code) => {
     receptionists,
     investigations,
     appointments,
+    appointmentTypes,
     bills,
     activities,
     hospitalSettings,
     dashboardSummary,
     fetchDashboardSummary,
+    fetchAll,
 
     toasts,
     showToast,
@@ -2553,6 +2680,10 @@ const toggleDoctorStatus = async (code) => {
     editAppointment,
     updateAppointmentStatus,
     deleteAppointment,
+
+    addAppointmentType,
+    updateAppointmentType,
+    toggleAppointmentTypeStatus,
 
     addInvestigation,
     editInvestigation,

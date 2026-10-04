@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
-import { app, loginAsAdmin } from './helpers.js';
+import { app, loginAsAdmin, loginAsReceptionist } from './helpers.js';
 
 async function findPatientId(token, search) {
   const res = await request(app).get(`/api/patients?search=${search}`).set('Authorization', `Bearer ${token}`);
@@ -14,12 +14,14 @@ async function findDoctorId(token, search) {
 
 describe('Appointments API', () => {
   let token;
+  let recToken;
   let patientId;
   let patient2Id;
   let doctorId;
 
   beforeAll(async () => {
     token = await loginAsAdmin();
+    recToken = await loginAsReceptionist();
     patientId = await findPatientId(token, 'Ramesh');
     patient2Id = await findPatientId(token, 'Anjali');
     doctorId = await findDoctorId(token, 'Arjun');
@@ -66,12 +68,46 @@ describe('Appointments API', () => {
     expect(res.body.data.status).toBe('Completed');
   });
 
-  it('permanently deletes appointment via DELETE /:id', async () => {
+  it('allows receptionist to order an investigation for an appointment', async () => {
+    const apt = await request(app)
+      .post('/api/appointments')
+      .set('Authorization', `Bearer ${recToken}`)
+      .send({ patientId, doctorId, appointmentDate: '2026-09-04', appointmentTime: '11:00' });
+    expect(apt.status).toBe(201);
+
+    const consRes = await request(app)
+      .get(`/api/consultations/appointment/${apt.body.data.id}`)
+      .set('Authorization', `Bearer ${recToken}`);
+    expect(consRes.status).toBe(200);
+
+    const invRes = await request(app)
+      .post('/api/consultations/investigations')
+      .set('Authorization', `Bearer ${recToken}`)
+      .send({
+        consultationId: consRes.body.data.id,
+        testName: 'MRI Spine'
+      });
+    expect(invRes.status).toBe(201);
+    expect(invRes.body.data.testName).toBe('MRI Spine');
+  });
+
+  it('permanently deletes appointment even when vitals and consultations exist', async () => {
     const created = await request(app)
       .post('/api/appointments')
       .set('Authorization', `Bearer ${token}`)
       .send({ patientId, doctorId, appointmentDate: '2026-09-03', appointmentTime: '09:00' });
     const id = created.body.data.id;
+
+    // Attach vitals & consultation
+    await request(app)
+      .post('/api/consultations/vitals')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        patientId,
+        appointmentId: id,
+        bpSystolic: 120,
+        bpDiastolic: 80
+      });
 
     const del = await request(app).delete(`/api/appointments/${id}`).set('Authorization', `Bearer ${token}`);
     expect(del.status).toBe(200);

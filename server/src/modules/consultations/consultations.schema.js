@@ -18,21 +18,29 @@ export const completeConsultationSchema = z.object({
   remarks: z.string().optional()
 });
 
-export const createVitalsSchema = z.object({
-  patientId: z.string().uuid(),
-  appointmentId: z.string().uuid().optional(),
-  consultationId: z.string().uuid().optional(),
-  bpSystolic: z.number().int().min(30).max(300).optional(),
-  bpDiastolic: z.number().int().min(20).max(200).optional(),
-  bpText: z.string().max(20).optional(),
-  pulse: z.number().int().min(20).max(250).optional(),
-  temperature: z.number().min(80).max(115).optional(),
-  weight: z.number().min(0.5).max(400).optional(),
-  height: z.number().min(20).max(300).optional(),
-  spo2: z.number().int().min(50).max(100).optional(),
-  bloodSugar: z.number().int().min(20).max(1000).optional(),
-  bmi: z.number().min(5).max(100).optional()
-});
+export const createVitalsSchema = z
+  .object({
+    patientId: z.string().uuid(),
+    appointmentId: z.string().uuid().optional(),
+    consultationId: z.string().uuid().optional(),
+    bpSystolic: z.number().int().min(30).max(300).optional(),
+    bpDiastolic: z.number().int().min(20).max(200).optional(),
+    bpText: z.string().max(20).optional(),
+    pulse: z.number().int().min(20).max(250).optional(),
+    temperature: z.number().min(80).max(115).optional(),
+    weight: z.number().min(0.5).max(400).optional(),
+    height: z.number().min(20).max(300).optional(),
+    spo2: z.number().int().min(50).max(100).optional(),
+    bloodSugar: z.number().int().min(20).max(1000).optional(),
+    bmi: z.number().min(5).max(100).optional()
+  })
+  .refine(
+    (data) => Boolean((data.bpText && data.bpText.trim().length > 0) || (data.bpSystolic !== undefined && data.bpDiastolic !== undefined)),
+    {
+      message: 'Blood pressure is required',
+      path: ['bpText']
+    }
+  );
 
 export const createPrescriptionSchema = z.object({
   consultationId: z.string().uuid(),

@@ -10,20 +10,21 @@ import { query } from '../../config/db.js';
 import { logActivity } from '../activities/activities.repository.js';
 
 async function resolveAppointmentId(appointmentIdOrCode) {
-  // If valid UUID format
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(appointmentIdOrCode);
-  if (isUuid) return appointmentIdOrCode;
-
-  const { rows } = await query('SELECT id FROM appointments WHERE appointment_code = $1', [appointmentIdOrCode]);
+  const sql = isUuid
+    ? 'SELECT id FROM appointments WHERE id = $1'
+    : 'SELECT id FROM appointments WHERE appointment_code = $1';
+  const { rows } = await query(sql, [appointmentIdOrCode]);
   if (!rows[0]) throw ApiError.notFound('Appointment not found');
   return rows[0].id;
 }
 
 async function resolvePatientId(patientIdOrCode) {
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(patientIdOrCode);
-  if (isUuid) return patientIdOrCode;
-
-  const { rows } = await query('SELECT id FROM patients WHERE patient_code = $1', [patientIdOrCode]);
+  const sql = isUuid
+    ? 'SELECT id FROM patients WHERE id = $1 AND deleted_at IS NULL'
+    : 'SELECT id FROM patients WHERE patient_code = $1 AND deleted_at IS NULL';
+  const { rows } = await query(sql, [patientIdOrCode]);
   if (!rows[0]) throw ApiError.notFound('Patient not found');
   return rows[0].id;
 }
