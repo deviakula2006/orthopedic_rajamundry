@@ -9,11 +9,23 @@ export async function logActivity(
   { userId = null, actorName, action, activityType = 'general', entityType = null, entityId = null },
   client = { query }
 ) {
-  await client.query(
-    `INSERT INTO activities (user_id, actor_name, action, activity_type, entity_type, entity_id)
-     VALUES ($1, $2, $3, $4, $5, $6)`,
-    [userId, actorName, action, activityType, entityType, entityId]
-  );
+  try {
+    await client.query(
+      `INSERT INTO activities (user_id, actor_name, action, activity_type, entity_type, entity_id)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [userId, actorName, action, activityType, entityType, entityId]
+    );
+  } catch (err) {
+    if (err.code === '23503' && err.constraint === 'activities_user_id_fkey') {
+      await client.query(
+        `INSERT INTO activities (user_id, actor_name, action, activity_type, entity_type, entity_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [null, actorName, action, activityType, entityType, entityId]
+      );
+    } else {
+      throw err;
+    }
+  }
 }
 
 export async function listRecent({ limit, offset }) {

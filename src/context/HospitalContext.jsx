@@ -1726,7 +1726,7 @@ const toggleDoctorStatus = async (code) => {
     );
 
     if (!target) {
-      return;
+      return undefined;
     }
 
     try {
@@ -1759,11 +1759,15 @@ const toggleDoctorStatus = async (code) => {
       );
 
       refreshActivities();
+
+      return saved;
     } catch (error) {
       reportError(
         error,
         'Failed to update receptionist'
       );
+
+      return undefined;
     }
   };
 
@@ -1774,7 +1778,7 @@ const toggleDoctorStatus = async (code) => {
     );
 
     if (!target) {
-      return;
+      return false;
     }
 
     try {
@@ -1795,11 +1799,15 @@ const toggleDoctorStatus = async (code) => {
       );
 
       refreshActivities();
+
+      return true;
     } catch (error) {
       reportError(
         error,
         'Failed to remove receptionist'
       );
+
+      return false;
     }
   };
 
@@ -1856,7 +1864,7 @@ const toggleDoctorStatus = async (code) => {
     );
 
     if (!target) {
-      return;
+      return undefined;
     }
 
     try {
@@ -1889,11 +1897,15 @@ const toggleDoctorStatus = async (code) => {
       );
 
       refreshActivities();
+
+      return saved;
     } catch (error) {
       reportError(
         error,
         'Failed to update investigation'
       );
+
+      return undefined;
     }
   };
 

@@ -47,8 +47,8 @@ async function resetToProduction() {
   }
   const adminRoleId = roleRows[0].id;
 
-  // 5. Create the single Admin account (username: admin, password: admin@123)
-  const passwordHash = await bcrypt.hash('admin@123', env.BCRYPT_SALT_ROUNDS || 12);
+  // 5. Create the single Admin account (username: admin, password: Admin@123)
+  const passwordHash = await bcrypt.hash('Admin@123', env.BCRYPT_SALT_ROUNDS || 12);
   
   const { rows: adminRows } = await query(`
     INSERT INTO users (username, email, password_hash, full_name, role_id, is_active)
@@ -60,7 +60,7 @@ async function resetToProduction() {
   console.log('  ✓ Created single system Administrator account:');
   console.log(`    - Username: ${adminUser.username}`);
   console.log(`    - Email:    ${adminUser.email}`);
-  console.log(`    - Password: admin@123`);
+  console.log(`    - Password: Admin@123`);
 
   // 6. Verify zero transactional records remain
   const { rows: userCount } = await query(`SELECT COUNT(*)::int FROM users;`);

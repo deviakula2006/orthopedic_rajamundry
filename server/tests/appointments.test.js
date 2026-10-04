@@ -31,7 +31,8 @@ describe('Appointments API', () => {
     const res = await request(app)
       .post('/api/appointments')
       .set('Authorization', `Bearer ${token}`)
-      .send({ patientId, doctorId, appointmentDate: '2026-09-01', appointmentTime: '10:00', fee: 500 });
+      // Use a well-future date so IST date/time validation never rejects it
+      .send({ patientId, doctorId, appointmentDate: '2027-01-15', appointmentTime: '10:00 AM', fee: 500 });
     expect(res.status).toBe(201);
     expect(res.body.data.status).toBe('Scheduled');
   });
@@ -40,7 +41,7 @@ describe('Appointments API', () => {
     const res = await request(app)
       .post('/api/appointments')
       .set('Authorization', `Bearer ${token}`)
-      .send({ patientId: patient2Id, doctorId, appointmentDate: '2026-09-01', appointmentTime: '10:00' });
+      .send({ patientId: patient2Id, doctorId, appointmentDate: '2027-01-15', appointmentTime: '10:00 AM' });
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe('CONFLICT');
   });
@@ -49,7 +50,7 @@ describe('Appointments API', () => {
     const res = await request(app)
       .post('/api/appointments')
       .set('Authorization', `Bearer ${token}`)
-      .send({ patientId: patient2Id, doctorId, appointmentDate: '2026-09-01', appointmentTime: '10:30' });
+      .send({ patientId: patient2Id, doctorId, appointmentDate: '2027-01-15', appointmentTime: '10:30 AM' });
     expect(res.status).toBe(201);
   });
 
@@ -57,7 +58,7 @@ describe('Appointments API', () => {
     const created = await request(app)
       .post('/api/appointments')
       .set('Authorization', `Bearer ${token}`)
-      .send({ patientId, doctorId, appointmentDate: '2026-09-02', appointmentTime: '09:00' });
+      .send({ patientId, doctorId, appointmentDate: '2027-01-16', appointmentTime: '09:00 AM' });
     const id = created.body.data.id;
 
     const res = await request(app)
@@ -72,7 +73,7 @@ describe('Appointments API', () => {
     const apt = await request(app)
       .post('/api/appointments')
       .set('Authorization', `Bearer ${recToken}`)
-      .send({ patientId, doctorId, appointmentDate: '2026-09-04', appointmentTime: '11:00' });
+      .send({ patientId, doctorId, appointmentDate: '2027-01-18', appointmentTime: '11:00 AM' });
     expect(apt.status).toBe(201);
 
     const consRes = await request(app)
@@ -95,7 +96,7 @@ describe('Appointments API', () => {
     const created = await request(app)
       .post('/api/appointments')
       .set('Authorization', `Bearer ${token}`)
-      .send({ patientId, doctorId, appointmentDate: '2026-09-03', appointmentTime: '09:00' });
+      .send({ patientId, doctorId, appointmentDate: '2027-01-17', appointmentTime: '09:00 AM' });
     const id = created.body.data.id;
 
     // Attach vitals & consultation

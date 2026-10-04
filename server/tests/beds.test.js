@@ -3,7 +3,7 @@ import request from 'supertest';
 import { app, loginAsAdmin } from './helpers.js';
 
 async function findAvailableBed(token) {
-  const res = await request(app).get('/api/beds?status=Available').set('Authorization', `Bearer ${token}`);
+  const res = await request(app).get('/api/beds?status=Vacant').set('Authorization', `Bearer ${token}`);
   return res.body.data[0].id;
 }
 
@@ -48,7 +48,7 @@ describe('Beds API', () => {
   });
 
   it('rejects releasing a bed that is not occupied (409)', async () => {
-    const otherBed = (await request(app).get('/api/beds?status=Available').set('Authorization', `Bearer ${token}`))
+    const otherBed = (await request(app).get('/api/beds?status=Vacant').set('Authorization', `Bearer ${token}`))
       .body.data[0].id;
     const res = await request(app).post(`/api/beds/${otherBed}/release`).set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(409);
@@ -57,7 +57,7 @@ describe('Beds API', () => {
   it('releases an occupied bed and closes the admission record', async () => {
     const res = await request(app).post(`/api/beds/${bedId}/release`).set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
-    expect(res.body.data.status).toBe('Available');
+    expect(res.body.data.status).toBe('Vacant');
     expect(res.body.data.patient).toBeNull();
 
     const history = await request(app).get(`/api/beds/${bedId}/admissions`).set('Authorization', `Bearer ${token}`);

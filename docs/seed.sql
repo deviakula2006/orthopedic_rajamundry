@@ -9,11 +9,11 @@ BEGIN;
 -- ----------------------------------------------------------------------------
 -- Wards (derived from beds[].ward / bedType in mockData.js)
 -- ----------------------------------------------------------------------------
-INSERT INTO wards (name, bed_type, base_rate) VALUES
-  ('General Ward',  'General',        800),
-  ('Semi Private',  'Semi-Private',  1800),
-  ('Private Room',  'Private Suite', 3500),
-  ('ICU',           'Critical Care', 6000);
+INSERT INTO wards (name, daily_charge) VALUES
+  ('General Ward',   800),
+  ('Semi Private',  1800),
+  ('Private Room',  3500),
+  ('ICU',           6000);
 
 -- ----------------------------------------------------------------------------
 -- Admin user (replaces the hardcoded admin/admin123 check in AuthContext.jsx)
@@ -89,8 +89,8 @@ JOIN doctors d ON d.name = v.doctor_name;
 -- current_patient_id to agree within a single row, so the occupied beds
 -- below get both columns set together in one UPDATE rather than split
 -- across INSERT + a later patient-only UPDATE.
-INSERT INTO beds (bed_no, ward_id, status)
-SELECT v.bed_no, w.id, 'Available'
+INSERT INTO beds (bed_number, ward_id, status)
+SELECT v.bed_number, w.id, 'Vacant'
 FROM (VALUES
   ('101', 'General Ward'),
   ('102', 'General Ward'),
@@ -104,14 +104,14 @@ FROM (VALUES
   ('302', 'Private Room'),
   ('401', 'ICU'),
   ('402', 'ICU')
-) AS v(bed_no, ward_name)
+) AS v(bed_number, ward_name)
 JOIN wards w ON w.name = v.ward_name;
 
 -- Occupied beds: status and current_patient_id set together to satisfy chk_bed_occupancy.
 UPDATE beds b SET status = 'Occupied', current_patient_id = p.id
-FROM (VALUES ('101', 'Ramesh Babu'), ('103', 'Kanya Sree'), ('203', 'Anjali Kumari'), ('301', 'Mohan Rao')) AS v(bed_no, patient_name)
+FROM (VALUES ('101', 'Ramesh Babu'), ('103', 'Kanya Sree'), ('203', 'Anjali Kumari'), ('301', 'Mohan Rao')) AS v(bed_number, patient_name)
 JOIN patients p ON p.name = v.patient_name
-WHERE b.bed_no = v.bed_no;
+WHERE b.bed_number = v.bed_number;
 
 -- Matching admission history rows for the occupied beds above
 INSERT INTO bed_admissions (bed_id, patient_id)

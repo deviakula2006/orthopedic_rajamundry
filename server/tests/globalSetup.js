@@ -21,6 +21,10 @@ export default async function globalSetup() {
   const testUrl = new URL(process.env.DATABASE_URL);
   const dbName = testUrl.pathname.slice(1);
 
+  if (!dbName.includes('test') || dbName === 'orthopedic_rajamundry_dev') {
+    throw new Error(`CRITICAL SAFETY ERROR: Refusing to drop non-test database: ${dbName}`);
+  }
+
   const adminUrl = new URL(testUrl);
   adminUrl.pathname = '/postgres';
 

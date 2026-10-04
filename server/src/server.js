@@ -5,8 +5,19 @@ import { logger } from './utils/logger.js';
 
 const app = createApp();
 
-const server = app.listen(env.PORT, () => {
-  logger.info(`Server listening on port ${env.PORT} (${env.NODE_ENV})`);
+const server = app.listen(env.PORT, async () => {
+  try {
+    const dbInfo = await pool.query('SELECT current_database(), current_user');
+    const { current_database, current_user } = dbInfo.rows[0];
+    logger.info({
+      nodeEnv: env.NODE_ENV,
+      port: env.PORT,
+      database: current_database,
+      dbUser: current_user
+    }, `Server listening on port ${env.PORT} (${env.NODE_ENV}) connected to ${current_database}`);
+  } catch (err) {
+    logger.error({ err }, 'Failed to connect to database on startup');
+  }
 });
 
 async function shutdown(signal) {

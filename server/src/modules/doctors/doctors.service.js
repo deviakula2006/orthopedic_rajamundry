@@ -71,8 +71,8 @@ export async function createDoctor(data, actor) {
 
   // 4. Log activity
   await logActivity({
-    userId: actor.id,
-    actorName: actor.name,
+    userId: actor?.id ?? null,
+    actorName: actor?.name || 'Administrator',
     action: `Added Dr. ${resultDoctor.name} to panel`,
     activityType: 'doctor',
     entityType: 'doctor',
@@ -84,7 +84,21 @@ export async function createDoctor(data, actor) {
 
 export async function updateDoctor(id, data, actor) {
   const current = await doctorsRepository.findById(id);
-  if (!current) throw ApiError.notFound('Doctor not found');
+  if (!current) throw ApiError.notFound('Doctor account could not be found.');
+
+  // Verify linked user through doctors.user_id
+  if (!current.user_id) {
+    throw ApiError.badRequest('Doctor account is not linked to a valid user account.');
+  }
+
+  const linkedUser = await usersRepository.findById(current.user_id);
+  if (!linkedUser) {
+    throw ApiError.badRequest('Doctor account is not linked to a valid user account.');
+  }
+
+  if (linkedUser.role !== 'Doctor') {
+    throw ApiError.badRequest('Doctor account is not linked to a valid user account.');
+  }
 
   // If email is changing, check duplicate in users table
   if (data.email && data.email !== current.email) {
@@ -95,31 +109,29 @@ export async function updateDoctor(id, data, actor) {
   }
 
   const row = await withTransaction(async (client) => {
-    if (current.user_id) {
-      // Sync user profile
-      await usersRepository.updateProfile(current.user_id, {
-        fullName: data.name,
-        email: data.email
-      }, client);
+    // Sync user profile
+    await usersRepository.updateProfile(current.user_id, {
+      fullName: data.name,
+      email: data.email
+    }, client);
 
-      // Sync active status
-      if (data.status) {
-        await usersRepository.updateActiveStatus(current.user_id, data.status === 'Active', client);
-      }
+    // Sync active status
+    if (data.status) {
+      await usersRepository.updateActiveStatus(current.user_id, data.status === 'Active', client);
+    }
 
-      // Sync password if provided and not empty
-      if (data.password && data.password.trim() !== '') {
-        const passwordHash = await bcrypt.hash(data.password, env.BCRYPT_SALT_ROUNDS);
-        await usersRepository.updatePasswordHash(current.user_id, passwordHash, client);
-      }
+    // Sync password if provided and not empty
+    if (data.password && data.password.trim() !== '') {
+      const passwordHash = await bcrypt.hash(data.password, env.BCRYPT_SALT_ROUNDS);
+      await usersRepository.updatePasswordHash(current.user_id, passwordHash, client);
     }
 
     return await doctorsRepository.update(id, data, client);
   });
 
   await logActivity({
-    userId: actor.id,
-    actorName: actor.name,
+    userId: actor?.id ?? null,
+    actorName: actor?.name || 'Administrator',
     action: `Updated credentials of Dr. ${row.name}`,
     activityType: 'doctor',
     entityType: 'doctor',
@@ -131,7 +143,7 @@ export async function updateDoctor(id, data, actor) {
 
 export async function toggleDoctorStatus(id, actor) {
   const current = await doctorsRepository.findById(id);
-  if (!current) throw ApiError.notFound('Doctor not found');
+  if (!current) throw ApiError.notFound('Doctor account could not be found.');
 
   const nextStatus = current.status === 'Active' ? 'Inactive' : 'Active';
 
@@ -143,8 +155,8 @@ export async function toggleDoctorStatus(id, actor) {
   });
 
   await logActivity({
-    userId: actor.id,
-    actorName: actor.name,
+    userId: actor?.id ?? null,
+    actorName: actor?.name || 'Administrator',
     action: `Toggled status of Dr. ${row.name} to ${nextStatus}`,
     activityType: 'doctor',
     entityType: 'doctor',
@@ -156,7 +168,7 @@ export async function toggleDoctorStatus(id, actor) {
 
 export async function deleteDoctor(id, actor) {
   const current = await doctorsRepository.findById(id);
-  if (!current) throw ApiError.notFound('Doctor not found');
+  if (!current) throw ApiError.notFound('Doctor account could not be found.');
 
   const row = await withTransaction(async (client) => {
     if (current.user_id) {
@@ -166,8 +178,8 @@ export async function deleteDoctor(id, actor) {
   });
 
   await logActivity({
-    userId: actor.id,
-    actorName: actor.name,
+    userId: actor?.id ?? null,
+    actorName: actor?.name || 'Administrator',
     action: `Removed Dr. ${row.name} from doctors directory`,
     activityType: 'doctor',
     entityType: 'doctor',

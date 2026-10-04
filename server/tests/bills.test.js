@@ -41,7 +41,7 @@ describe('Bills API', () => {
       });
     expect(res.status).toBe(201);
     expect(res.body.data.subTotal).toBe(700); // 500 + 100*2
-    expect(res.body.data.total).toBe(675); // 700 - 50 + 25
+    expect(res.body.data.total).toBe(650); // 700 - 50 discount, GST 0% (configurable via settings)
     expect(res.body.data.items).toHaveLength(2);
   });
 

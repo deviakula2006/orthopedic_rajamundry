@@ -69,8 +69,8 @@ export async function createReceptionist(data, actor) {
 
   // 4. Log activity
   await logActivity({
-    userId: actor.id,
-    actorName: actor.name,
+    userId: actor?.id ?? null,
+    actorName: actor?.name || 'Administrator',
     action: `Registered new receptionist: ${resultRec.name}`,
     activityType: 'receptionist',
     entityType: 'receptionist',
@@ -82,7 +82,21 @@ export async function createReceptionist(data, actor) {
 
 export async function updateReceptionist(id, data, actor) {
   const current = await receptionistsRepository.findById(id);
-  if (!current) throw ApiError.notFound('Receptionist not found');
+  if (!current) throw ApiError.notFound('Receptionist account could not be found.');
+
+  // Verify linked user through receptionists.user_id
+  if (!current.user_id) {
+    throw ApiError.badRequest('Receptionist account is not linked to a valid user account.');
+  }
+
+  const linkedUser = await usersRepository.findById(current.user_id);
+  if (!linkedUser) {
+    throw ApiError.badRequest('Receptionist account is not linked to a valid user account.');
+  }
+
+  if (linkedUser.role !== 'Receptionist') {
+    throw ApiError.badRequest('Receptionist account is not linked to a valid user account.');
+  }
 
   // If email is changing, check duplicate in users table
   if (data.email && data.email !== current.email) {
@@ -93,31 +107,29 @@ export async function updateReceptionist(id, data, actor) {
   }
 
   const row = await withTransaction(async (client) => {
-    if (current.user_id) {
-      // Sync user profile
-      await usersRepository.updateProfile(current.user_id, {
-        fullName: data.name,
-        email: data.email
-      }, client);
+    // Sync user profile
+    await usersRepository.updateProfile(current.user_id, {
+      fullName: data.name,
+      email: data.email
+    }, client);
 
-      // Sync active status
-      if (data.status) {
-        await usersRepository.updateActiveStatus(current.user_id, data.status === 'Active', client);
-      }
+    // Sync active status
+    if (data.status) {
+      await usersRepository.updateActiveStatus(current.user_id, data.status === 'Active', client);
+    }
 
-      // Sync password if provided and not empty
-      if (data.password && data.password.trim() !== '') {
-        const passwordHash = await bcrypt.hash(data.password, env.BCRYPT_SALT_ROUNDS);
-        await usersRepository.updatePasswordHash(current.user_id, passwordHash, client);
-      }
+    // Sync password if provided and not empty
+    if (data.password && data.password.trim() !== '') {
+      const passwordHash = await bcrypt.hash(data.password, env.BCRYPT_SALT_ROUNDS);
+      await usersRepository.updatePasswordHash(current.user_id, passwordHash, client);
     }
 
     return await receptionistsRepository.update(id, data, client);
   });
 
   await logActivity({
-    userId: actor.id,
-    actorName: actor.name,
+    userId: actor?.id ?? null,
+    actorName: actor?.name || 'Administrator',
     action: `Updated details of receptionist ${row.name}`,
     activityType: 'receptionist',
     entityType: 'receptionist',
@@ -129,7 +141,7 @@ export async function updateReceptionist(id, data, actor) {
 
 export async function deleteReceptionist(id, actor) {
   const current = await receptionistsRepository.findById(id);
-  if (!current) throw ApiError.notFound('Receptionist not found');
+  if (!current) throw ApiError.notFound('Receptionist account could not be found.');
 
   const row = await withTransaction(async (client) => {
     if (current.user_id) {
@@ -139,8 +151,8 @@ export async function deleteReceptionist(id, actor) {
   });
 
   await logActivity({
-    userId: actor.id,
-    actorName: actor.name,
+    userId: actor?.id ?? null,
+    actorName: actor?.name || 'Administrator',
     action: `Removed receptionist ${row.name} from directory`,
     activityType: 'receptionist',
     entityType: 'receptionist',

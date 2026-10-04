@@ -5,25 +5,46 @@ import { env } from '../config/env.js';
 // Maps Postgres error codes we can meaningfully translate into HTTP responses.
 // https://www.postgresql.org/docs/current/errcodes-appendix.html
 const PG_ERROR_MAP = {
-  '23505': () => ApiError.conflict('A record with this value already exists'),
-  '23503': () => ApiError.badRequest('Referenced record does not exist'),
+  '23505': (err) => {
+    const match = err?.detail?.match(/Key \((.+?)\)=\((.+?)\) already exists/);
+    if (match) {
+      return ApiError.conflict(`${match[1]} '${match[2]}' is already taken`);
+    }
+    return ApiError.conflict('A record with this value already exists');
+  },
+  '23503': (err) => {
+    if (err?.constraint === 'doctors_user_id_fkey') {
+      return ApiError.badRequest('Doctor account is not linked to a valid user account.');
+    }
+    if (err?.constraint === 'receptionists_user_id_fkey') {
+      return ApiError.badRequest('Receptionist account is not linked to a valid user account.');
+    }
+    if (err?.constraint === 'activities_user_id_fkey') {
+      return ApiError.badRequest('Actor account is not linked to a valid user account.');
+    }
+    if (err?.constraint?.includes('doctor')) {
+      return ApiError.badRequest('Doctor account could not be found.');
+    }
+    if (err?.constraint?.includes('receptionist')) {
+      return ApiError.badRequest('Receptionist account could not be found.');
+    }
+    if (err?.constraint?.includes('patient')) {
+      return ApiError.badRequest('Patient account could not be found.');
+    }
+    return ApiError.badRequest(err?.detail ? `Referenced record does not exist: ${err.detail}` : 'Referenced record does not exist');
+  },
   '23514': () => ApiError.badRequest('Value violates a data constraint'),
-  '22P02': () => ApiError.badRequest('Malformed input value')
+  '22P02': () => ApiError.badRequest('Malformed input value (check ID format or numeric fields)')
 };
 
-// function normalizeError(err) {
-//   if (err instanceof ApiError) return err;
-//   if (err.code && PG_ERROR_MAP[err.code]) return PG_ERROR_MAP[err.code]();
-//   return ApiError.internal();
-// }
 function normalizeError(err) {
-  console.log("PG ERROR:", err);
-
   if (err instanceof ApiError) return err;
 
-  if (err.code && PG_ERROR_MAP[err.code]) return PG_ERROR_MAP[err.code]();
+  if (err?.code && PG_ERROR_MAP[err.code]) {
+    return PG_ERROR_MAP[err.code](err);
+  }
 
-  return ApiError.internal();
+  return ApiError.internal(err?.message || 'Internal server error');
 }
 
 // eslint-disable-next-line no-unused-vars

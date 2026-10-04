@@ -4,7 +4,7 @@ export const createReceptionistSchema = z.object({
   name: z.string().min(1).max(150),
   phone: z.string().min(7).max(15),
   email: z.string().email().max(150),
-  status: z.enum(['Active', 'Inactive']).optional(),
+  status: z.enum(['Active', 'Inactive', 'On Leave']).optional(),
   shift: z.string().max(100).optional(),
   password: z.string().min(8, 'Password must be at least 8 characters')
 });

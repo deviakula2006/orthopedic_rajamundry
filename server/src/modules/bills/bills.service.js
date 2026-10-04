@@ -39,11 +39,11 @@ export async function createBill(data, actor) {
   // never trusted from the client — so a tampered request body can't
   // produce an invoice whose total doesn't match its items.
   const subTotal = items.reduce((sum, item) => sum + item.amount * (item.quantity ?? 1), 0);
-  const taxableAmount = Math.max(0, subTotal - discount);
+  if (discount > subTotal) throw ApiError.badRequest('Discount cannot exceed subtotal');
+  const taxableAmount = subTotal - discount;
   const calculatedTax = Math.round(taxableAmount * (configuredGstRate / 100) * 100) / 100;
   const tax = calculatedTax;
   const total = taxableAmount + tax;
-  if (total < 0) throw ApiError.badRequest('Discount cannot exceed subtotal');
 
   const result = await withTransaction(async (client) => {
     const header = await billsRepository.createBillHeader(
