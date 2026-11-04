@@ -98,7 +98,8 @@
 import {
   createContext,
   useContext,
-  useState
+  useState,
+  useEffect
 } from 'react';
 
 import apiClient from '../services/api';
@@ -117,6 +118,33 @@ export const AuthProvider = ({ children }) => {
     }
   });
   const [loading, setLoading] = useState(false);
+
+  // Sync authenticated user profile from backend on app mount
+  useEffect(() => {
+    const storedToken = localStorage.getItem('roh_auth_token');
+    if (!storedToken) return;
+
+    let isMounted = true;
+    apiClient.get('/auth/me')
+      .then((res) => {
+        const liveUser = res.data?.data;
+        if (liveUser && isMounted) {
+          localStorage.setItem('roh_admin_user', JSON.stringify(liveUser));
+          setUser(liveUser);
+        }
+      })
+      .catch((err) => {
+        if (err.response?.status === 401) {
+          localStorage.removeItem('roh_admin_user');
+          localStorage.removeItem('roh_auth_token');
+          if (isMounted) setUser(null);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // LOGIN
   // Backend decides the actual role.
@@ -172,11 +200,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   // UPDATE PROFILE
-  const updateProfile = async (name, email) => {
-    const response = await apiClient.patch('/auth/profile', {
-      name,
-      email
-    });
+  const updateProfile = async (nameOrPayload, maybeEmail) => {
+    const payload = typeof nameOrPayload === 'object' && nameOrPayload !== null
+      ? nameOrPayload
+      : { name: nameOrPayload, email: maybeEmail };
+
+    const response = await apiClient.patch('/auth/profile', payload);
 
     const updatedUser = response.data.data;
 
@@ -203,6 +232,7 @@ export const AuthProvider = ({ children }) => {
 
   const value = {
     user,
+    setUser,
     isAuthenticated: Boolean(user),
     loading,
     login,

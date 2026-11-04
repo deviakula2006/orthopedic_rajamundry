@@ -14,6 +14,7 @@ const PAGE_TITLES = {
   beds:          { title: 'Bed Management',      sub: 'Ward & bed allocation' },
   reports:       { title: 'Reports & Analytics', sub: 'Operational reports' },
   settings:      { title: 'Settings',            sub: 'System configuration' },
+  profile:       { title: 'User Profile',        sub: 'Manage staff & security credentials' },
 };
 
 const Topbar = ({ toggleSidebar }) => {
@@ -140,14 +141,32 @@ const Topbar = ({ toggleSidebar }) => {
             <div className="p-1">
               <button
                 className="dropdown-item"
-                onClick={() => { setShowMenu(false); navigate('/admin/settings'); }}
+                onClick={() => {
+                  setShowMenu(false);
+                  const rolePrefix =
+                    user?.role === 'Doctor'
+                      ? '/doctor'
+                      : user?.role === 'Receptionist'
+                      ? '/receptionist'
+                      : '/admin';
+                  navigate(`${rolePrefix}/profile`);
+                }}
               >
                 <User className="h-3.5 w-3.5" />
                 My Profile
               </button>
               <button
                 className="dropdown-item"
-                onClick={() => { setShowMenu(false); navigate('/admin/settings'); }}
+                onClick={() => {
+                  setShowMenu(false);
+                  const rolePrefix =
+                    user?.role === 'Doctor'
+                      ? '/doctor'
+                      : user?.role === 'Receptionist'
+                      ? '/receptionist'
+                      : '/admin';
+                  navigate(`${rolePrefix}/settings`);
+                }}
               >
                 <Settings className="h-3.5 w-3.5" />
                 Settings

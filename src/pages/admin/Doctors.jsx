@@ -5,9 +5,10 @@ import { Modal } from '../../components/ui/Modal';
 import { Plus, Edit, Trash2, Clock, Award, Eye } from 'lucide-react';
 import ThreeDotMenu from '../../components/common/ThreeDotMenu';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
+import TimeRangePicker from '../../components/common/TimeRangePicker';
 
 const Doctors = () => {
-  const { doctors, addDoctor, editDoctor, deleteDoctor, toggleDoctorStatus } = useHospital();
+  const { doctors, addDoctor, editDoctor, deleteDoctor, toggleDoctorStatus, showToast } = useHospital();
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -25,14 +26,16 @@ const Doctors = () => {
 
   // Form states
   const [formData, setFormData] = useState({
-  name: '',
-  specialization: '',
-  phone: '',
-  email: '',
-  experience: '',
-  availability: '',
-  status: 'Active'
-});
+    name: '',
+    specialization: '',
+    phone: '',
+    email: '',
+    experience: '',
+    availability: '',
+    status: 'Active',
+    password: '',
+    confirmPassword: ''
+  });
 
   const handleOpenAdd = () => {
     setFormData({
@@ -41,9 +44,10 @@ const Doctors = () => {
       phone: '',
       email: '',
       experience: '',
-      availability: '',
+      availability: '08:30 AM – 04:00 PM',
       status: 'Active',
-      password: ''
+      password: '',
+      confirmPassword: ''
     });
 
     setIsAddOpen(true);
@@ -52,14 +56,15 @@ const Doctors = () => {
   const handleOpenEdit = (doc) => {
     setSelectedDoctor(doc);
     setFormData({
-      name: doc.name,
-      specialization: doc.specialization,
-      phone: doc.phone,
-      email: doc.email,
-      experience: doc.experience,
-      availability: doc.availability,
-      status: doc.status,
-      password: ''
+      name: doc.name || '',
+      specialization: doc.specialization || '',
+      phone: doc.phone || '',
+      email: doc.email || '',
+      experience: doc.experience || '',
+      availability: doc.availability || '08:30 AM – 04:00 PM',
+      status: doc.status || 'Active',
+      password: '',
+      confirmPassword: ''
     });
     setIsEditOpen(true);
   };
@@ -69,8 +74,23 @@ const Doctors = () => {
     setIsViewOpen(true);
   };
 
-   const handleAddSubmit = async (e) => {
+  const handleAddSubmit = async (e) => {
     e.preventDefault();
+
+    if (!formData.password || formData.password.trim() === '') {
+      showToast("Password is required", "error");
+      return;
+    }
+
+    if (formData.password.length < 8) {
+      showToast("Password must be at least 8 characters", "error");
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      showToast("Password and confirmation do not match!", "error");
+      return;
+    }
 
     const createdDoctor = await addDoctor(formData);
 
@@ -84,6 +104,17 @@ const Doctors = () => {
 
     if (!selectedDoctor) {
       return;
+    }
+
+    if (formData.password && formData.password.trim() !== '') {
+      if (formData.password.length < 8) {
+        showToast("Password must be at least 8 characters", "error");
+        return;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        showToast("New password and confirmation do not match!", "error");
+        return;
+      }
     }
 
     const updatedDoctor = await editDoctor(
@@ -134,8 +165,6 @@ const Doctors = () => {
       setSelectedDoctorId('');
     }
   };
-
-  
 
   const columns = [
     {
@@ -243,9 +272,9 @@ const Doctors = () => {
 
       {/* Table */}
       <div className="card" style={{ padding: '1.25rem' }}>
-      <Table
-        columns={columns}
-        data={doctors}
+        <Table
+          columns={columns}
+          data={doctors}
           itemsPerPage={8}
           actions={(row) => (
             <ThreeDotMenu
@@ -262,11 +291,10 @@ const Doctors = () => {
       {/* Modal: Add Doctor */}
       <Modal isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} title="Register Specialty Doctor" size="md">
         <form onSubmit={handleAddSubmit} className="space-y-4">
+          {/* Name & Specialization */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Doctor Name
-              </label>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Doctor Name</label>
               <input
                 type="text"
                 required
@@ -277,30 +305,22 @@ const Doctors = () => {
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Specialization
-              </label>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Specialization</label>
               <input
-  type="text"
-  required
-  value={formData.specialization}
-  onChange={(e) =>
-    setFormData({
-      ...formData,
-      specialization: e.target.value
-    })
-  }
-  placeholder="e.g. Orthopedic Surgeon"
-  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
-/>
+                type="text"
+                required
+                value={formData.specialization}
+                onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
+                placeholder="e.g. Orthopedic Surgeon"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
+              />
             </div>
           </div>
 
+          {/* Phone & Email */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Phone Number
-              </label>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Phone Number</label>
               <input
                 type="tel"
                 required
@@ -311,9 +331,7 @@ const Doctors = () => {
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Email Address
-              </label>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Email Address</label>
               <input
                 type="email"
                 required
@@ -325,49 +343,55 @@ const Doctors = () => {
             </div>
           </div>
 
+          {/* Experience Years */}
           <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-              Login Password
-            </label>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Experience Years</label>
             <input
-              type="password"
+              type="text"
               required
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              placeholder="Min 8 characters"
+              value={formData.experience}
+              onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
+              placeholder="e.g. 15 Years"
               className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
             />
           </div>
 
+          {/* Shift Working Hours */}
+          <div className="pt-1">
+            <TimeRangePicker
+              value={formData.availability || '08:30 AM – 04:00 PM'}
+              onChange={(val) => setFormData({ ...formData, availability: val })}
+              label="Shift Working Hours"
+            />
+          </div>
+
+          {/* Password & Confirm Password */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Experience Years
-              </label>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Login Password</label>
               <input
-                type="text"
+                type="password"
                 required
-                value={formData.experience}
-                onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
-                placeholder="e.g. 15 Years"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                placeholder="Min 8 characters"
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Shift Timing
-              </label>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Confirm Password</label>
               <input
-                type="text"
+                type="password"
                 required
-                value={formData.availability}
-                onChange={(e) => setFormData({ ...formData, availability: e.target.value })}
-                placeholder="e.g. 9:00 AM - 1:00 PM"
+                value={formData.confirmPassword}
+                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                placeholder="Confirm password"
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
               />
             </div>
           </div>
 
+          {/* Action Buttons */}
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
             <button
               type="button"
@@ -407,18 +431,18 @@ const Doctors = () => {
                 Specialization
               </label>
               <input
-  type="text"
-  required
-  value={formData.specialization}
-  onChange={(e) =>
-    setFormData({
-      ...formData,
-      specialization: e.target.value
-    })
-  }
-  placeholder="e.g. Orthopedic Surgeon"
-  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
-/>
+                type="text"
+                required
+                value={formData.specialization}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    specialization: e.target.value
+                  })
+                }
+                placeholder="e.g. Orthopedic Surgeon"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
+              />
             </div>
           </div>
 
@@ -449,44 +473,52 @@ const Doctors = () => {
             </div>
           </div>
 
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+              Experience Years
+            </label>
+            <input
+              type="text"
+              required
+              value={formData.experience}
+              onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
+            />
+          </div>
+
+          <div className="pt-1">
+            <TimeRangePicker
+              value={formData.availability || '08:30 AM – 04:00 PM'}
+              onChange={(val) => setFormData({ ...formData, availability: val })}
+              label="Shift Working Hours"
+            />
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Experience Years
+                Modify Login Password (Optional)
               </label>
               <input
-                type="text"
-                required
-                value={formData.experience}
-                onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
+                type="password"
+                value={formData.password || ''}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                placeholder="Leave blank to keep current"
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
               />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Shift Timing
+                Confirm New Password
               </label>
               <input
-                type="text"
-                required
-                value={formData.availability}
-                onChange={(e) => setFormData({ ...formData, availability: e.target.value })}
+                type="password"
+                value={formData.confirmPassword || ''}
+                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                placeholder="Confirm password"
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
               />
             </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-              Modify Login Password (Optional)
-            </label>
-            <input
-              type="password"
-              value={formData.password || ''}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              placeholder="Leave blank to keep existing password"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
-            />
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">

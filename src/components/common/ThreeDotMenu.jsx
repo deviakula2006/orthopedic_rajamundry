@@ -4,19 +4,65 @@ import { MoreHorizontal } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 /**
- * ThreeDotMenu — actions dropdown rendered in a portal so it
- * escapes ANY overflow:hidden / overflow:auto ancestor (table wrappers, cards etc.)
+ * ThreeDotMenu — actions dropdown rendered in a portal with intelligent
+ * viewport-aware upward/downward and horizontal positioning.
  *
  * Props:
  *   options  Array<{ label, icon?, onClick, destructive? }>
  */
-const MENU_WIDTH = 176; // px — keep in sync with minWidth below
+const MENU_WIDTH = 184; // px
 
 const ThreeDotMenu = ({ options = [] }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [coords, setCoords] = useState({ top: 0, left: 0 });
+  const [coords, setCoords] = useState({ top: 0, left: 0, openUpward: false });
   const btnRef = useRef(null);
   const menuRef = useRef(null);
+
+  /* ── Compute intelligent position ── */
+  const computePosition = useCallback(() => {
+    if (!btnRef.current) return null;
+    const rect = btnRef.current.getBoundingClientRect();
+
+    // Check if anchor button is still visible in viewport
+    if (rect.bottom < 0 || rect.top > window.innerHeight) {
+      return null;
+    }
+
+    const estimatedHeight = Math.max(72, options.length * 36 + 12);
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    // Flip upward if insufficient space below and more space above
+    const openUpward = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
+
+    let top = openUpward
+      ? rect.top - estimatedHeight - 4
+      : rect.bottom + 4;
+
+    // Clamp inside viewport vertical boundaries
+    if (top < 8) top = 8;
+    if (top + estimatedHeight > window.innerHeight - 8) {
+      top = Math.max(8, window.innerHeight - estimatedHeight - 8);
+    }
+
+    // Align with right edge of button, flip or clamp if overflowing
+    let left = rect.right - MENU_WIDTH;
+    if (left < 8) left = 8;
+    if (left + MENU_WIDTH > window.innerWidth - 8) {
+      left = Math.max(8, window.innerWidth - MENU_WIDTH - 8);
+    }
+
+    return { top, left, openUpward };
+  }, [options.length]);
+
+  const updatePosition = useCallback(() => {
+    const next = computePosition();
+    if (next) {
+      setCoords(next);
+    } else {
+      setIsOpen(false);
+    }
+  }, [computePosition]);
 
   /* ── Close on outside click ── */
   useEffect(() => {
@@ -45,33 +91,32 @@ const ThreeDotMenu = ({ options = [] }) => {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
 
-  /* ── Close on scroll outside menu ── */
+  /* ── Keep position attached on scroll and resize ── */
   useEffect(() => {
     if (!isOpen) return;
-    const handler = (e) => {
-      if (menuRef.current && menuRef.current.contains(e.target)) return;
-      setIsOpen(false);
-    };
-    window.addEventListener('scroll', handler, true);
-    return () => window.removeEventListener('scroll', handler, true);
-  }, [isOpen]);
 
-  /* ── Recompute position when opening ── */
+    const handleScrollOrResize = () => {
+      updatePosition();
+    };
+
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    window.addEventListener('resize', handleScrollOrResize);
+
+    return () => {
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      window.removeEventListener('resize', handleScrollOrResize);
+    };
+  }, [isOpen, updatePosition]);
+
+  /* ── Toggle open state ── */
   const handleToggle = useCallback((e) => {
     e.stopPropagation();
-    if (!isOpen && btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      // Flip left if would overflow right edge of viewport
-      const left = rect.right - MENU_WIDTH < 8
-        ? rect.left
-        : rect.right - MENU_WIDTH;
-      setCoords({
-        top:  rect.bottom + 4,   // 4px gap below button
-        left: Math.max(8, left),
-      });
+    if (!isOpen) {
+      const pos = computePosition();
+      if (pos) setCoords(pos);
     }
     setIsOpen(v => !v);
-  }, [isOpen]);
+  }, [isOpen, computePosition]);
 
   return (
     <>
@@ -99,32 +144,40 @@ const ThreeDotMenu = ({ options = [] }) => {
           e.currentTarget.style.borderColor   = 'transparent';
           e.currentTarget.style.color         = '#9ca3af';
         }}
-        aria-label="Appointment Actions"
+        aria-label="Row Actions"
       >
         <MoreHorizontal style={{ width: 15, height: 15 }} />
       </button>
 
-      {/* Dropdown rendered in a PORTAL — escapes all overflow contexts */}
+      {/* Dropdown rendered in a PORTAL — completely escapes table overflow clipping */}
       {createPortal(
         <AnimatePresence>
           {isOpen && (
             <motion.div
               ref={menuRef}
-              initial={{ opacity: 0, scale: 0.94, y: -4 }}
-              animate={{ opacity: 1, scale: 1,    y: 0  }}
-              exit={{   opacity: 0, scale: 0.94, y: -4  }}
-              transition={{ duration: 0.1, ease: 'easeOut' }}
+              initial={{
+                opacity: 0,
+                scale: 0.94,
+                y: coords.openUpward ? 6 : -6
+              }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{
+                opacity: 0,
+                scale: 0.94,
+                y: coords.openUpward ? 6 : -6
+              }}
+              transition={{ duration: 0.12, ease: 'easeOut' }}
               style={{
                 position: 'fixed',
-                top:  coords.top,
+                top: coords.top,
                 left: coords.left,
-                zIndex: 9999,
+                zIndex: 99999,
                 minWidth: MENU_WIDTH,
                 background: '#ffffff',
                 border: '1px solid #e5e7eb',
                 borderRadius: 10,
                 padding: '4px',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06)',
+                boxShadow: '0 10px 28px rgba(0,0,0,0.15), 0 3px 8px rgba(0,0,0,0.06)',
               }}
             >
               {options.map((opt, idx) => {

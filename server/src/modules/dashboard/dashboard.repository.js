@@ -42,7 +42,9 @@ export async function getBedOccupancy() {
 
 export async function getRevenueToday() {
   const { rows } = await query(
-    `SELECT COALESCE(SUM(total), 0) AS revenue FROM bills WHERE bill_date = CURRENT_DATE AND payment_status = 'Paid'`
+    `SELECT COALESCE(SUM(total), 0) AS revenue FROM bills 
+     WHERE bill_date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::date 
+       AND payment_status = 'Paid'`
   );
   return Number(rows[0].revenue);
 }

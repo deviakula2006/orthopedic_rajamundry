@@ -29,3 +29,13 @@ export async function getInvestigationsReport(req, res, next) {
     next(error);
   }
 }
+
+export async function getConsultationsReport(req, res, next) {
+  try {
+    const { dateFrom, dateTo } = req.query;
+    const report = await reportsService.getConsultationsReport({ dateFrom, dateTo });
+    res.json({ success: true, data: report });
+  } catch (error) {
+    next(error);
+  }
+}

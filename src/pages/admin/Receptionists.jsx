@@ -5,13 +5,15 @@ import { Modal } from '../../components/ui/Modal';
 import { Plus, Edit, Trash2, Clock, Eye } from 'lucide-react';
 import ThreeDotMenu from '../../components/common/ThreeDotMenu';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
+import TimeRangePicker from '../../components/common/TimeRangePicker';
 
 const Receptionists = () => {
   const {
     receptionists,
     addReceptionist,
     editReceptionist,
-    deleteReceptionist
+    deleteReceptionist,
+    showToast
   } = useHospital();
 
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -33,8 +35,10 @@ const Receptionists = () => {
     name: '',
     phone: '',
     email: '',
-    shift: 'Morning (8 AM - 4 PM)',
-    status: 'Active'
+    shift: '08:00 AM – 04:00 PM',
+    status: 'Active',
+    password: '',
+    confirmPassword: ''
   });
 
   const handleOpenAdd = () => {
@@ -42,9 +46,10 @@ const Receptionists = () => {
       name: '',
       phone: '',
       email: '',
-      shift: 'Morning (8 AM - 4 PM)',
+      shift: '08:00 AM – 04:00 PM',
       status: 'Active',
-      password: ''
+      password: '',
+      confirmPassword: ''
     });
     setIsAddOpen(true);
   };
@@ -52,12 +57,13 @@ const Receptionists = () => {
   const handleOpenEdit = (rec) => {
     setSelectedRec(rec);
     setFormData({
-      name: rec.name,
-      phone: rec.phone,
-      email: rec.email,
-      shift: rec.shift,
-      status: rec.status,
-      password: ''
+      name: rec.name || '',
+      phone: rec.phone || '',
+      email: rec.email || '',
+      shift: rec.shift || '08:00 AM – 04:00 PM',
+      status: rec.status || 'Active',
+      password: '',
+      confirmPassword: ''
     });
     setIsEditOpen(true);
   };
@@ -67,81 +73,107 @@ const Receptionists = () => {
     setIsViewOpen(true);
   };
 
- const handleAddSubmit = async (e) => {
-  e.preventDefault();
+  const handleAddSubmit = async (e) => {
+    e.preventDefault();
 
-  const createdReceptionist = await addReceptionist(formData);
-
-  if (createdReceptionist) {
-    setIsAddOpen(false);
-  }
-};
-
-const handleEditSubmit = async (e) => {
-  e.preventDefault();
-
-  if (!selectedRec) {
-    return;
-  }
-
-  const updatedReceptionist = await editReceptionist(
-    selectedRec.id,
-    formData
-  );
-
-  if (updatedReceptionist) {
-    setIsEditOpen(false);
-    setSelectedRec(null);
-  }
-};
-
-const triggerStatusToggle = (rec) => {
-  setRecToToggle(rec);
-  setStatusConfirmOpen(true);
-};
-
-const handleConfirmStatusToggle = async () => {
-  if (!recToToggle) {
-    return;
-  }
-
-  const newStatus =
-    recToToggle.status === 'Active' ? 'Inactive' : 'Active';
-
-  const updatedReceptionist = await editReceptionist(
-    recToToggle.id,
-    {
-      name: recToToggle.name,
-      phone: recToToggle.phone,
-      email: recToToggle.email,
-      shift: recToToggle.shift,
-      status: newStatus
+    if (!formData.password || formData.password.trim() === '') {
+      showToast("Password is required", "error");
+      return;
     }
-  );
 
-  if (updatedReceptionist) {
-    setStatusConfirmOpen(false);
-    setRecToToggle(null);
-  }
-};
+    if (formData.password.length < 8) {
+      showToast("Password must be at least 8 characters", "error");
+      return;
+    }
 
-const triggerDelete = (id) => {
-  setSelectedRecId(id);
-  setDeleteConfirmOpen(true);
-};
+    if (formData.password !== formData.confirmPassword) {
+      showToast("Password and confirmation do not match!", "error");
+      return;
+    }
 
-const handleConfirmDelete = async () => {
-  if (!selectedRecId) {
-    return;
-  }
+    const createdReceptionist = await addReceptionist(formData);
 
-  const deleted = await deleteReceptionist(selectedRecId);
+    if (createdReceptionist) {
+      setIsAddOpen(false);
+    }
+  };
 
-  if (deleted) {
-    setDeleteConfirmOpen(false);
-    setSelectedRecId('');
-  }
-};
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!selectedRec) {
+      return;
+    }
+
+    if (formData.password && formData.password.trim() !== '') {
+      if (formData.password.length < 8) {
+        showToast("Password must be at least 8 characters", "error");
+        return;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        showToast("New password and confirmation do not match!", "error");
+        return;
+      }
+    }
+
+    const updatedReceptionist = await editReceptionist(
+      selectedRec.id,
+      formData
+    );
+
+    if (updatedReceptionist) {
+      setIsEditOpen(false);
+      setSelectedRec(null);
+    }
+  };
+
+  const triggerStatusToggle = (rec) => {
+    setRecToToggle(rec);
+    setStatusConfirmOpen(true);
+  };
+
+  const handleConfirmStatusToggle = async () => {
+    if (!recToToggle) {
+      return;
+    }
+
+    const newStatus =
+      recToToggle.status === 'Active' ? 'Inactive' : 'Active';
+
+    const updatedReceptionist = await editReceptionist(
+      recToToggle.id,
+      {
+        name: recToToggle.name,
+        phone: recToToggle.phone,
+        email: recToToggle.email,
+        shift: recToToggle.shift,
+        status: newStatus
+      }
+    );
+
+    if (updatedReceptionist) {
+      setStatusConfirmOpen(false);
+      setRecToToggle(null);
+    }
+  };
+
+  const triggerDelete = (id) => {
+    setSelectedRecId(id);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedRecId) {
+      return;
+    }
+
+    const deleted = await deleteReceptionist(selectedRecId);
+
+    if (deleted) {
+      setDeleteConfirmOpen(false);
+      setSelectedRecId('');
+    }
+  };
 
   const columns = [
     {
@@ -228,9 +260,9 @@ const handleConfirmDelete = async () => {
 
       {/* Table */}
       <div className="card" style={{ padding: '1.25rem' }}>
-      <Table
-        columns={columns}
-        data={receptionists}
+        <Table
+          columns={columns}
+          data={receptionists}
           itemsPerPage={8}
           actions={(row) => (
             <ThreeDotMenu
@@ -263,23 +295,6 @@ const handleConfirmDelete = async () => {
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Duty Shift
-              </label>
-              <select
-                value={formData.shift}
-                onChange={(e) => setFormData({ ...formData, shift: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all cursor-pointer font-semibold"
-              >
-                <option value="Morning (8 AM - 4 PM)">Morning (8 AM - 4 PM)</option>
-                <option value="Evening (4 PM - 12 AM)">Evening (4 PM - 12 AM)</option>
-                <option value="Night (12 AM - 8 AM)">Night (12 AM - 8 AM)</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                 Phone Number
               </label>
               <input
@@ -291,33 +306,57 @@ const handleConfirmDelete = async () => {
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
               />
             </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Email Address
-              </label>
-              <input
-                type="email"
-                required
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="e.g. kishore.k@roh.com"
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
-              />
-            </div>
           </div>
 
           <div>
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-              Login Password
+              Email Address
             </label>
             <input
-              type="password"
+              type="email"
               required
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              placeholder="Min 8 characters"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              placeholder="e.g. kishore.k@roh.com"
               className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
             />
+          </div>
+
+          <div className="pt-1">
+            <TimeRangePicker
+              value={formData.shift || '08:00 AM – 04:00 PM'}
+              onChange={(val) => setFormData({ ...formData, shift: val })}
+              label="Assigned Duty Shift"
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                Login Password
+              </label>
+              <input
+                type="password"
+                required
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                placeholder="Min 8 characters"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                Confirm Password
+              </label>
+              <input
+                type="password"
+                required
+                value={formData.confirmPassword}
+                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                placeholder="Confirm password"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
+              />
+            </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
@@ -356,23 +395,6 @@ const handleConfirmDelete = async () => {
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Duty Shift
-              </label>
-              <select
-                value={formData.shift}
-                onChange={(e) => setFormData({ ...formData, shift: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all cursor-pointer font-semibold"
-              >
-                <option value="Morning (8 AM - 4 PM)">Morning (8 AM - 4 PM)</option>
-                <option value="Evening (4 PM - 12 AM)">Evening (4 PM - 12 AM)</option>
-                <option value="Night (12 AM - 8 AM)">Night (12 AM - 8 AM)</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                 Phone Number
               </label>
               <input
@@ -383,31 +405,54 @@ const handleConfirmDelete = async () => {
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
               />
             </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Email Address
-              </label>
-              <input
-                type="email"
-                required
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
-              />
-            </div>
           </div>
 
           <div>
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-              Modify Login Password (Optional)
+              Email Address
             </label>
             <input
-              type="password"
-              value={formData.password || ''}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              placeholder="Leave blank to keep existing password"
+              type="email"
+              required
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
             />
+          </div>
+
+          <div className="pt-1">
+            <TimeRangePicker
+              value={formData.shift || '08:00 AM – 04:00 PM'}
+              onChange={(val) => setFormData({ ...formData, shift: val })}
+              label="Assigned Duty Shift"
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                Modify Login Password (Optional)
+              </label>
+              <input
+                type="password"
+                value={formData.password || ''}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                placeholder="Leave blank to keep current"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                Confirm New Password
+              </label>
+              <input
+                type="password"
+                value={formData.confirmPassword || ''}
+                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                placeholder="Confirm password"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
+              />
+            </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">

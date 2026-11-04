@@ -62,7 +62,8 @@ export async function update(id, fields, client) {
     email: fields.email,
     status: fields.status,
     availability_note: fields.availabilityNote,
-    experience_years: fields.experienceYears
+    experience_years: fields.experienceYears,
+    user_id: fields.userId
   });
   if (!clause) return findById(id, client);
 

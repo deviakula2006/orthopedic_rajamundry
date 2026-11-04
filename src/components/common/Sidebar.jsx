@@ -49,6 +49,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       { name: 'Billing & Payments', path: '/receptionist/billing',       icon: Receipt },
       { name: 'Bed Management',     path: '/receptionist/beds',          icon: Bed },
       { name: 'Reports & Analytics',path: '/receptionist/reports',       icon: FileSpreadsheet },
+      { name: 'Profile & Settings', path: '/receptionist/settings',      icon: SettingsIcon },
     ];
   }
 

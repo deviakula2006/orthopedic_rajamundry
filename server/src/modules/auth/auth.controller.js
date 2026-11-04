@@ -22,3 +22,21 @@ export const changePassword = asyncHandler(async (req, res) => {
   await authService.changePassword(req.user.id, req.body);
   sendSuccess(res, { data: null });
 });
+
+export const forgotPasswordRequest = asyncHandler(async (req, res) => {
+  const { username } = req.body;
+  const result = await authService.requestPasswordReset(username);
+  sendSuccess(res, { data: result });
+});
+
+export const forgotPasswordVerify = asyncHandler(async (req, res) => {
+  const { username, otp } = req.body;
+  const result = await authService.verifyPasswordResetOtp({ username, otp });
+  sendSuccess(res, { data: result });
+});
+
+export const forgotPasswordReset = asyncHandler(async (req, res) => {
+  const { username, resetToken, newPassword } = req.body;
+  const result = await authService.resetPassword({ username, resetToken, newPassword });
+  sendSuccess(res, { data: result });
+});

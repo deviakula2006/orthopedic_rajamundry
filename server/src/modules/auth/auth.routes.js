@@ -2,7 +2,14 @@ import { Router } from 'express';
 import { authenticate } from '../../middlewares/auth.js';
 import { validate } from '../../middlewares/validate.js';
 import { authRateLimiter } from '../../middlewares/rateLimiter.js';
-import { loginSchema, updateProfileSchema, changePasswordSchema } from './auth.schema.js';
+import {
+  loginSchema,
+  updateProfileSchema,
+  changePasswordSchema,
+  forgotPasswordRequestSchema,
+  forgotPasswordVerifySchema,
+  forgotPasswordResetSchema
+} from './auth.schema.js';
 import * as authController from './auth.controller.js';
 
 export const authRouter = Router();
@@ -16,4 +23,26 @@ authRouter.patch(
   authRateLimiter,
   validate({ body: changePasswordSchema }),
   authController.changePassword
+);
+
+// Forgot Password OTP Recovery Flow
+authRouter.post(
+  '/forgot-password/request',
+  authRateLimiter,
+  validate({ body: forgotPasswordRequestSchema }),
+  authController.forgotPasswordRequest
+);
+
+authRouter.post(
+  '/forgot-password/verify',
+  authRateLimiter,
+  validate({ body: forgotPasswordVerifySchema }),
+  authController.forgotPasswordVerify
+);
+
+authRouter.post(
+  '/forgot-password/reset',
+  authRateLimiter,
+  validate({ body: forgotPasswordResetSchema }),
+  authController.forgotPasswordReset
 );

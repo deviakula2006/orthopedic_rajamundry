@@ -50,14 +50,20 @@ export async function list({ limit, offset, patientId, paymentStatus, billType }
 }
 
 export async function findById(id, client = { query }) {
-  const { rows } = await client.query(`SELECT ${BASE_SELECT} ${BASE_FROM} WHERE b.id = $1`, [id]);
+  const { rows } = await client.query(
+    `SELECT ${BASE_SELECT} ${BASE_FROM} WHERE b.id::text = $1 OR b.invoice_no = $1`,
+    [id]
+  );
   return rows[0] ?? null;
 }
 
 export async function listItems(billId) {
   const { rows } = await query(
-    `SELECT id, investigation_id, description, item_type, quantity, amount
-     FROM bill_items WHERE bill_id = $1 ORDER BY created_at ASC`,
+    `SELECT bi.id, bi.investigation_id, bi.description, bi.item_type, bi.quantity, bi.amount
+     FROM bill_items bi
+     JOIN bills b ON bi.bill_id = b.id
+     WHERE b.id::text = $1 OR b.invoice_no = $1
+     ORDER BY bi.created_at ASC`,
     [billId]
   );
   return rows;

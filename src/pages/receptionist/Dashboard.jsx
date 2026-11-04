@@ -9,6 +9,7 @@ import {
   CheckCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { getNowInIST } from '../../utils/dateTime';
 
 // Modals
 import PatientModal from '../../components/modals/PatientModal';
@@ -23,8 +24,8 @@ const ReceptionistDashboard = () => {
   const [patientModalOpen, setPatientModalOpen] = useState(false);
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
 
-  // Compute Receptionist KPIs
-  const todayStr = new Date().toISOString().slice(0, 10);
+  // Compute Receptionist KPIs in local hospital IST
+  const todayStr = getNowInIST().dateStr;
   
   // Total Registrations Today
   const registrationsTodayCount = patients.filter((p) => p.registrationDate === todayStr).length;
@@ -42,14 +43,14 @@ const ReceptionistDashboard = () => {
     (a) => a.date === todayStr && a.status === 'Scheduled'
   ).length;
 
-  // Today's Collection
+  // Today's Collection (Only qualifying Paid bills for today, no pending/failed/cancelled, ₹0 if none)
   const todayBills = bills.filter((b) => b.date === todayStr && b.paymentStatus === 'Paid');
-  const todayCollectionVal = todayBills.reduce((acc, b) => acc + b.total, 0);
+  const todayCollectionVal = todayBills.reduce((acc, b) => acc + (Number(b.total) || 0), 0);
   const formattedCollection = new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
     maximumFractionDigits: 0
-  }).format(todayCollectionVal || 1850);
+  }).format(todayCollectionVal);
 
   const stats = [
     {

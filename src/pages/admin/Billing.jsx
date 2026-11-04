@@ -2,8 +2,11 @@ import { useState } from 'react';
 import { useHospital } from '../../context/HospitalContext';
 import { Table } from '../../components/ui/Table';
 import { Modal } from '../../components/ui/Modal';
-import { Plus, Printer, Eye, Receipt, PlusCircle } from 'lucide-react';
+import { Plus, Printer, Eye, Receipt, PlusCircle, Download, RefreshCw } from 'lucide-react';
 import Autocomplete from '../../components/common/Autocomplete';
+import apiClient from '../../services/api';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const Billing = () => {
   const { bills, patients, doctors, investigations, appointmentTypes, hospitalSettings, addBill, updateBillStatus } = useHospital();
@@ -159,9 +162,144 @@ const Billing = () => {
     }
   };
 
-  const handleOpenInvoice = (bill) => {
+  const [loadingInvoice, setLoadingInvoice] = useState(false);
+  const [invoiceError, setInvoiceError] = useState('');
+
+  const handleOpenInvoice = async (bill) => {
     setSelectedBill(bill);
     setIsInvoiceOpen(true);
+    setInvoiceError('');
+
+    const billId = bill.dbId || bill.id;
+    if (billId) {
+      setLoadingInvoice(true);
+      try {
+        const res = await apiClient.get(`/bills/${billId}`);
+        const fullBill = res.data?.data;
+        if (fullBill) {
+          setSelectedBill({
+            invoiceNo: fullBill.invoiceNo,
+            dbId: fullBill.id,
+            date: fullBill.billDate,
+            billType:
+              fullBill.billType === 'OPD'
+                ? 'Consultation'
+                : fullBill.billType === 'Lab'
+                ? 'Investigations'
+                : fullBill.billType,
+            patientId: fullBill.patient?.code || bill.patientId,
+            patientName: fullBill.patient?.name || bill.patientName,
+            doctorName: fullBill.doctor?.name || bill.doctorName,
+            paymentMode: fullBill.paymentMode || bill.paymentMode,
+            paymentStatus: fullBill.paymentStatus || bill.paymentStatus,
+            subTotal: Number(fullBill.subTotal ?? bill.subTotal ?? 0),
+            discount: Number(fullBill.discount ?? bill.discount ?? 0),
+            tax: Number(fullBill.tax ?? bill.tax ?? 0),
+            total: Number(fullBill.total ?? bill.total ?? 0),
+            items: (fullBill.items || []).map((it) => ({
+              description: it.description,
+              type: it.type || it.itemType || 'Service',
+              amount: Number(it.amount),
+              quantity: Number(it.quantity || 1)
+            }))
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load full invoice details:', err);
+        setInvoiceError('Unable to fetch detailed line items from the database.');
+      } finally {
+        setLoadingInvoice(false);
+      }
+    }
+  };
+
+  const handleDownloadPdf = () => {
+    if (!selectedBill) return;
+    try {
+      const doc = new jsPDF();
+      const hospitalName = hospitalSettings?.name || 'Rajahmundry Orthopedic Hospital';
+      const address = hospitalSettings?.address || 'Danavaipeta, Tilak Road, Rajahmundry, Andhra Pradesh, 533103';
+      const contact = `Phone: ${hospitalSettings?.contactPhone || '+91 883 244 5566'} | Reg: ${hospitalSettings?.licenseNumber || 'AP-MED-ROH-2026-981'}`;
+
+      // Hospital Header
+      doc.setFontSize(16);
+      doc.setFont(undefined, 'bold');
+      doc.text(hospitalName, 14, 18);
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(100);
+      doc.text(address, 14, 24);
+      doc.text(contact, 14, 29);
+
+      // Invoice Meta
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(20);
+      doc.text('OFFICIAL TAX INVOICE', 135, 18);
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'normal');
+      doc.text(`Invoice No: ${selectedBill.invoiceNo}`, 135, 24);
+      doc.text(`Date: ${selectedBill.date}`, 135, 29);
+
+      // Divider line
+      doc.setDrawColor(220);
+      doc.line(14, 34, 196, 34);
+
+      // Patient & Consultant Details
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.text('Patient Details', 14, 42);
+      doc.text('Consultation Details', 110, 42);
+
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'normal');
+      doc.text(`Name: ${selectedBill.patientName}`, 14, 48);
+      doc.text(`Patient ID: ${selectedBill.patientId}`, 14, 53);
+      doc.text(`Scope: ${selectedBill.billType}`, 14, 58);
+
+      doc.text(`Treating Doctor: ${selectedBill.doctorName || 'Hospital Consultant'}`, 110, 48);
+      doc.text(`Payment Mode: ${selectedBill.paymentMode || 'N/A'}`, 110, 53);
+      doc.text(`Payment Status: ${selectedBill.paymentStatus || 'Paid'}`, 110, 58);
+
+      // Line Items Table
+      const itemsList = selectedBill.items && selectedBill.items.length > 0
+        ? selectedBill.items
+        : [{ description: `${selectedBill.billType} Services`, type: selectedBill.billType, amount: selectedBill.subTotal || selectedBill.total }];
+
+      const head = [['#', 'Service Description', 'Type', 'Amount (Rs.)']];
+      const body = itemsList.map((item, idx) => [
+        idx + 1,
+        item.description,
+        item.type,
+        `Rs. ${item.amount}`
+      ]);
+
+      autoTable(doc, {
+        head,
+        body,
+        startY: 64,
+        headStyles: { fillColor: [34, 120, 232] },
+        styles: { fontSize: 9 }
+      });
+
+      const finalY = doc.lastAutoTable?.finalY || 100;
+
+      // Totals
+      doc.setFontSize(9);
+      doc.setFont(undefined, 'normal');
+      doc.text(`Sub Total: Rs. ${selectedBill.subTotal}`, 135, finalY + 10);
+      if (selectedBill.discount > 0) {
+        doc.text(`Discount: -Rs. ${selectedBill.discount}`, 135, finalY + 16);
+      }
+      doc.text(`GST (${gstRate}%): Rs. ${selectedBill.tax}`, 135, finalY + (selectedBill.discount > 0 ? 22 : 16));
+      doc.setFontSize(11);
+      doc.setFont(undefined, 'bold');
+      doc.text(`Grand Total: Rs. ${selectedBill.total}`, 135, finalY + (selectedBill.discount > 0 ? 30 : 24));
+
+      doc.save(`invoice-${selectedBill.invoiceNo}.pdf`);
+    } catch (err) {
+      console.error('Invoice PDF export failed:', err);
+    }
   };
 
   const triggerPrint = () => {
@@ -579,50 +717,82 @@ const Billing = () => {
                 </div>
               </div>
 
-              <table className="w-full text-left text-xs border-collapse my-6">
-                <thead>
-                  <tr className="border-b bg-slate-50 font-bold text-slate-400 uppercase">
-                    <th className="px-4 py-2">#</th>
-                    <th className="px-4 py-2">Service Description</th>
-                    <th className="px-4 py-2">Type</th>
-                    <th className="px-4 py-2 text-right">Amount (₹)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                  {selectedBill.items.map((item, idx) => (
-                    <tr key={idx}>
-                      <td className="px-4 py-2.5 text-slate-400">{idx + 1}</td>
-                      <td className="px-4 py-2.5">{item.description}</td>
-                      <td className="px-4 py-2.5">{item.type}</td>
-                      <td className="px-4 py-2.5 text-right">₹{item.amount}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {loadingInvoice ? (
+                <div className="flex items-center justify-center py-12 gap-2 text-slate-500 text-sm font-semibold">
+                  <RefreshCw className="w-5 h-5 animate-spin text-hospital-500" />
+                  <span>Loading invoice details from database...</span>
+                </div>
+              ) : (
+                <>
+                  {invoiceError && (
+                    <div className="p-3 my-2 text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-xl">
+                      {invoiceError}
+                    </div>
+                  )}
 
-              <div className="flex flex-col items-end pt-4 border-t text-xs font-semibold text-slate-600 space-y-1.5">
-                <div className="flex w-64 justify-between">
-                  <span>Sub Total:</span>
-                  <span className="text-slate-800">₹{selectedBill.subTotal}</span>
-                </div>
-                {selectedBill.discount > 0 && (
-                  <div className="flex w-64 justify-between text-red-500">
-                    <span>Discount:</span>
-                    <span>-₹{selectedBill.discount}</span>
+                  <table className="w-full text-left text-xs border-collapse my-6">
+                    <thead>
+                      <tr className="border-b bg-slate-50 font-bold text-slate-400 uppercase">
+                        <th className="px-4 py-2">#</th>
+                        <th className="px-4 py-2">Service Description</th>
+                        <th className="px-4 py-2">Type</th>
+                        <th className="px-4 py-2 text-right">Amount (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                      {selectedBill.items && selectedBill.items.length > 0 ? (
+                        selectedBill.items.map((item, idx) => (
+                          <tr key={idx}>
+                            <td className="px-4 py-2.5 text-slate-400">{idx + 1}</td>
+                            <td className="px-4 py-2.5">{item.description}</td>
+                            <td className="px-4 py-2.5">{item.type}</td>
+                            <td className="px-4 py-2.5 text-right">₹{item.amount}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td className="px-4 py-2.5 text-slate-400">1</td>
+                          <td className="px-4 py-2.5">{selectedBill.billType} Care & Service Fee</td>
+                          <td className="px-4 py-2.5">{selectedBill.billType}</td>
+                          <td className="px-4 py-2.5 text-right">₹{selectedBill.subTotal || selectedBill.total}</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+
+                  <div className="flex flex-col items-end pt-4 border-t text-xs font-semibold text-slate-600 space-y-1.5">
+                    <div className="flex w-64 justify-between">
+                      <span>Sub Total:</span>
+                      <span className="text-slate-800">₹{selectedBill.subTotal}</span>
+                    </div>
+                    {selectedBill.discount > 0 && (
+                      <div className="flex w-64 justify-between text-red-500">
+                        <span>Discount:</span>
+                        <span>-₹{selectedBill.discount}</span>
+                      </div>
+                    )}
+                    <div className="flex w-64 justify-between">
+                      <span>GST ({gstRate}%):</span>
+                      <span className="text-slate-800">₹{selectedBill.tax}</span>
+                    </div>
+                    <div className="flex w-64 justify-between text-sm font-extrabold text-slate-800 border-t pt-2 mt-1">
+                      <span>Grand Total:</span>
+                      <span className="text-hospital-600 font-bold text-base">₹{selectedBill.total}</span>
+                    </div>
                   </div>
-                )}
-                <div className="flex w-64 justify-between">
-                  <span>GST ({gstRate}%):</span>
-                  <span className="text-slate-800">₹{selectedBill.tax}</span>
-                </div>
-                <div className="flex w-64 justify-between text-sm font-extrabold text-slate-800 border-t pt-2 mt-1">
-                  <span>Grand Total:</span>
-                  <span className="text-hospital-600 font-bold text-base">₹{selectedBill.total}</span>
-                </div>
-              </div>
+                </>
+              )}
             </div>
 
             <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                className="rounded-xl border border-slate-200 py-2.5 px-4 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Download className="h-4 w-4 text-hospital-600" />
+                <span>Download PDF</span>
+              </button>
               <button
                 type="button"
                 onClick={triggerPrint}

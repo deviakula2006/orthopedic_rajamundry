@@ -23,6 +23,9 @@ import Settings from '../pages/admin/Settings';
 import ReceptionistDashboard from '../pages/receptionist/Dashboard';
 import ReceptionistReports from '../pages/receptionist/Reports';
 
+// Common Pages
+import ProfileSettings from '../pages/common/ProfileSettings';
+
 // Doctor Module Pages
 import DoctorDashboard from '../pages/doctor/Dashboard';
 import PatientProfile from '../pages/doctor/PatientProfile';
@@ -81,6 +84,7 @@ const AppRoutes = () => {
         <Route path="beds" element={<BedManagement />} />
         <Route path="reports" element={<Reports />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="profile" element={<ProfileSettings />} />
       </Route>
 
       {/* Receptionist Subtree */}
@@ -99,6 +103,8 @@ const AppRoutes = () => {
         <Route path="billing" element={<Billing />} />
         <Route path="beds" element={<BedManagement />} />
         <Route path="reports" element={<ReceptionistReports />} />
+        <Route path="profile" element={<ProfileSettings />} />
+        <Route path="settings" element={<ProfileSettings />} />
       </Route>
 
       {/* Doctor Subtree */}
@@ -113,6 +119,8 @@ const AppRoutes = () => {
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<DoctorDashboard />} />
         <Route path="patient/:patientId" element={<PatientProfile />} />
+        <Route path="profile" element={<ProfileSettings />} />
+        <Route path="settings" element={<ProfileSettings />} />
       </Route>
 
       {/* Fallbacks */}

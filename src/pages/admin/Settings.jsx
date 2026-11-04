@@ -10,6 +10,7 @@ const HospitalMetadataForm = ({ settings, onSave }) => {
   const [hospAddr, setHospAddr] = useState(settings?.address || '');
   const [hospContact, setHospContact] = useState(settings?.contactPhone || '');
   const [hospLic, setHospLic] = useState(settings?.licenseNumber || '');
+  const [hospEmail, setHospEmail] = useState(settings?.email || 'akuladevigangabhavani@gmail.com');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -18,6 +19,7 @@ const HospitalMetadataForm = ({ settings, onSave }) => {
       setHospAddr(settings.address || '');
       setHospContact(settings.contactPhone || '');
       setHospLic(settings.licenseNumber || '');
+      setHospEmail(settings.email || 'akuladevigangabhavani@gmail.com');
     }
   }, [settings]);
 
@@ -29,7 +31,8 @@ const HospitalMetadataForm = ({ settings, onSave }) => {
         name: hospName,
         address: hospAddr,
         contactPhone: hospContact,
-        licenseNumber: hospLic
+        licenseNumber: hospLic,
+        email: hospEmail
       });
     } finally {
       setIsSaving(false);
@@ -75,15 +78,28 @@ const HospitalMetadataForm = ({ settings, onSave }) => {
           />
         </div>
         <div>
-          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Facility Location / Address</label>
+          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+            Hospital Recovery Email <span className="text-hospital-600 font-semibold">(Password Recovery Destination)</span>
+          </label>
           <input
-            type="text"
+            type="email"
             required
-            value={hospAddr}
-            onChange={(e) => setHospAddr(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
+            value={hospEmail}
+            onChange={(e) => setHospEmail(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
           />
         </div>
+      </div>
+
+      <div>
+        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Facility Location / Address</label>
+        <input
+          type="text"
+          required
+          value={hospAddr}
+          onChange={(e) => setHospAddr(e.target.value)}
+          className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
+        />
       </div>
 
       <div>
@@ -467,7 +483,7 @@ const HospitalManagementTab = ({
 };
 
 const Settings = () => {
-  const { user, updateProfile, changePassword } = useAuth();
+  const { changePassword } = useAuth();
   const {
     showToast,
     hospitalSettings,
@@ -478,31 +494,13 @@ const Settings = () => {
     toggleAppointmentTypeStatus
   } = useHospital();
 
-  const [activeTab, setActiveTab] = useState('profile');
-
-  // Profile forms
-  const [profileName, setProfileName] = useState(user?.name || 'Super Admin');
-  const [profileEmail, setProfileEmail] = useState(user?.email || 'admin@roh.com');
-  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [activeTab, setActiveTab] = useState('hospital');
 
   // Password forms
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
-
-  const handleProfileSubmit = async (e) => {
-    e.preventDefault();
-    setIsUpdatingProfile(true);
-    try {
-      await updateProfile(profileName, profileEmail);
-      showToast("Profile details updated successfully!");
-    } catch (err) {
-      showToast(err.response?.data?.error?.message || "Failed to update profile", "error");
-    } finally {
-      setIsUpdatingProfile(false);
-    }
-  };
 
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
@@ -525,10 +523,9 @@ const Settings = () => {
   };
 
   const tabs = [
-    { id: 'profile', name: 'Admin Profile', icon: User },
-    { id: 'security', name: 'Access Security', icon: Shield },
     { id: 'hospital', name: 'Hospital Metadata', icon: Building },
-    { id: 'management', name: 'Hospital Management', icon: Sliders }
+    { id: 'management', name: 'Hospital Management', icon: Sliders },
+    { id: 'security', name: 'Access Security', icon: Shield }
   ];
 
   return (
@@ -537,7 +534,7 @@ const Settings = () => {
       <div style={{ paddingBottom: '1rem', borderBottom: '1px solid #e8eaed' }}>
         <h1 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#0a0f1e', letterSpacing: '-0.01em' }}>Settings</h1>
         <p style={{ fontSize: '0.75rem', fontWeight: 500, color: '#374151', marginTop: 2 }}>
-          Configure admin profile, credentials, hospital metadata, appointment types, and billing GST
+          Configure hospital metadata, appointment types, billing GST, and security credentials
         </p>
       </div>
 
@@ -571,45 +568,6 @@ const Settings = () => {
 
         {/* Content panel */}
         <div className="card" style={{ flex: 1, minWidth: 0, padding: '1.5rem' }}>
-          {activeTab === 'profile' && (
-            <form onSubmit={handleProfileSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <h3 style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#0f172a', borderBottom: '1px solid #f1f3f4', paddingBottom: '0.75rem' }}>Admin Profile</h3>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Administrative Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={profileName}
-                    onChange={(e) => setProfileName(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Email Address</label>
-                  <input
-                    type="email"
-                    required
-                    value={profileEmail}
-                    onChange={(e) => setProfileEmail(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <button
-                  type="submit"
-                  disabled={isUpdatingProfile}
-                  className="flex items-center gap-1.5 rounded-xl bg-hospital-500 px-5 py-2.5 text-sm font-bold text-white shadow-premium hover:bg-hospital-600 focus:outline-none disabled:opacity-60 cursor-pointer"
-                >
-                  <Save className="h-4.5 w-4.5" />
-                  <span>{isUpdatingProfile ? 'Updating...' : 'Update Profile'}</span>
-                </button>
-              </div>
-            </form>
-          )}
 
           {activeTab === 'security' && (
             <form onSubmit={handlePasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>

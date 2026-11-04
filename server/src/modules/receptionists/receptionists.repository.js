@@ -55,7 +55,8 @@ export async function update(id, fields, client) {
     phone: fields.phone,
     email: fields.email,
     status: fields.status,
-    shift: fields.shift
+    shift: fields.shift,
+    user_id: fields.userId
   });
   if (!clause) return findById(id, client);
 
@@ -73,6 +74,15 @@ export async function softDelete(id, client) {
   const { rows } = await q(
     `UPDATE receptionists SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING id, name`,
     [id]
+  );
+  return rows[0] ?? null;
+}
+
+export async function findByUserId(userId, client) {
+  const q = client ? client.query.bind(client) : query;
+  const { rows } = await q(
+    `SELECT ${BASE_SELECT} FROM receptionists WHERE user_id = $1 AND deleted_at IS NULL`,
+    [userId]
   );
   return rows[0] ?? null;
 }

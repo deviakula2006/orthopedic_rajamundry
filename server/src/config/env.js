@@ -10,7 +10,12 @@ const envSchema = z.object({
   JWT_EXPIRES_IN: z.string().min(1).default('8h'),
   BCRYPT_SALT_ROUNDS: z.coerce.number().int().min(10).max(15).default(12),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900000),
-  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300)
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().optional(),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().optional()
 });
 
 const parsed = envSchema.safeParse(process.env);

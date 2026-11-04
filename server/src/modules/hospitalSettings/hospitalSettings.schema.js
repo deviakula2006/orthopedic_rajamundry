@@ -6,6 +6,7 @@ export const updateHospitalSettingsSchema = z
     address: z.string().max(1000).optional(),
     contactPhone: z.string().max(30).optional(),
     licenseNumber: z.string().max(100).optional(),
+    email: z.string().email('Valid hospital email is required').max(150).optional(),
     gstRate: z.coerce.number().min(0).max(100).optional()
   })
   .refine((data) => Object.values(data).some((v) => v !== undefined), {

@@ -10,5 +10,6 @@ reportsRouter.use(authenticate);
 reportsRouter.use(requireRole('Admin', 'Receptionist'));
 
 reportsRouter.get('/revenue', validate({ query: getReportQuerySchema }), reportsController.getRevenueReport);
+reportsRouter.get('/consultations', validate({ query: getReportQuerySchema }), reportsController.getConsultationsReport);
 reportsRouter.get('/patients', validate({ query: getReportQuerySchema }), reportsController.getPatientsReport);
 reportsRouter.get('/investigations', validate({ query: getReportQuerySchema }), reportsController.getInvestigationsReport);

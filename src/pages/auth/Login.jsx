@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { HeartPulse, Lock, User, Eye, EyeOff, AlertCircle, ArrowRight } from 'lucide-react';
 import loginBg from '../../assets/login_bg.png';
+import ForgotPasswordModal from '../../components/auth/ForgotPasswordModal';
 
 const Login = () => {
   const { login } = useAuth();
@@ -15,6 +16,7 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error,        setError]        = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isForgotOpen, setIsForgotOpen] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -167,9 +169,23 @@ const Login = () => {
                   />
                   Remember me
                 </label>
-                <a href="#forgot" style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#2278e8', textDecoration: 'none' }}>
+                <button
+                  type="button"
+                  onClick={() => setIsForgotOpen(true)}
+                  style={{
+                    fontSize: '0.8125rem',
+                    fontWeight: 600,
+                    color: '#2278e8',
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    cursor: 'pointer'
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                  onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                >
                   Forgot password?
-                </a>
+                </button>
               </div>
 
               {/* Submit */}
@@ -204,6 +220,16 @@ const Login = () => {
             </form>
           </motion.div>
         </div>
+
+        {/* Forgot Password Modal */}
+        <ForgotPasswordModal
+          isOpen={isForgotOpen}
+          onClose={() => setIsForgotOpen(false)}
+          onPasswordResetSuccess={(uname) => {
+            setUsername(uname);
+            setPassword('');
+          }}
+        />
 
         {/* Footer */}
         <p style={{ fontSize: '0.6875rem', fontWeight: 500, color: '#6b7280', textAlign: 'center' }}>

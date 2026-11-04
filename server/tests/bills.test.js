@@ -14,6 +14,10 @@ describe('Bills API', () => {
   beforeAll(async () => {
     token = await loginAsAdmin();
     patientId = await findPatientId(token, 'Mohan');
+    await request(app)
+      .patch('/api/hospital-settings')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ gstRate: 0 });
   });
 
   it('rejects a bill with no line items', async () => {

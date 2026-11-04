@@ -84,44 +84,81 @@ export async function updateReceptionist(id, data, actor) {
   const current = await receptionistsRepository.findById(id);
   if (!current) throw ApiError.notFound('Receptionist account could not be found.');
 
-  // Verify linked user through receptionists.user_id
-  if (!current.user_id) {
-    throw ApiError.badRequest('Receptionist account is not linked to a valid user account.');
-  }
+  // Verify or safely heal linked user through receptionists.user_id
+  let linkedUserId = current.user_id;
+  let linkedUser = linkedUserId ? await usersRepository.findById(linkedUserId) : null;
 
-  const linkedUser = await usersRepository.findById(current.user_id);
   if (!linkedUser) {
-    throw ApiError.badRequest('Receptionist account is not linked to a valid user account.');
-  }
-
-  if (linkedUser.role !== 'Receptionist') {
-    throw ApiError.badRequest('Receptionist account is not linked to a valid user account.');
+    // Attempt auto-recovery by email
+    const emailToSearch = data.email || current.email;
+    if (emailToSearch) {
+      linkedUser = await usersRepository.findByUsernameOrEmail(emailToSearch);
+      if (linkedUser) {
+        linkedUserId = linkedUser.id;
+        await receptionistsRepository.update(id, { userId: linkedUserId });
+      }
+    }
   }
 
   // If email is changing, check duplicate in users table
   if (data.email && data.email !== current.email) {
     const existingUser = await usersRepository.findByUsernameOrEmail(data.email);
-    if (existingUser && existingUser.id !== current.user_id) {
+    if (existingUser && existingUser.id !== linkedUserId) {
       throw ApiError.badRequest('Email is already registered');
     }
   }
 
   const row = await withTransaction(async (client) => {
-    // Sync user profile
-    await usersRepository.updateProfile(current.user_id, {
-      fullName: data.name,
-      email: data.email
-    }, client);
+    if (!linkedUser) {
+      // Create user account if absent
+      const roleId = await usersRepository.findRoleIdByName('Receptionist', client);
+      let baseUsername = (data.email || current.email || 'receptionist')
+        .split('@')[0]
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, '')
+        .slice(0, 40);
+      if (!baseUsername) baseUsername = 'receptionist';
+      let username = baseUsername;
+      let counter = 1;
+      while (await usersRepository.findByUsernameOrEmail(username, client)) {
+        username = `${baseUsername}${counter}`;
+        counter++;
+      }
+      const initialPass = data.password && data.password.trim() !== '' ? data.password : 'Reception@123';
+      const initialHash = await bcrypt.hash(initialPass, env.BCRYPT_SALT_ROUNDS);
+      const createdUser = await usersRepository.create(
+        {
+          username,
+          email: data.email || current.email,
+          passwordHash: initialHash,
+          fullName: data.name || current.name,
+          roleId
+        },
+        client
+      );
+      linkedUserId = createdUser.id;
+      data.userId = linkedUserId;
+    } else {
+      // Sync user profile
+      await usersRepository.updateProfile(
+        linkedUserId,
+        {
+          fullName: data.name,
+          email: data.email
+        },
+        client
+      );
 
-    // Sync active status
-    if (data.status) {
-      await usersRepository.updateActiveStatus(current.user_id, data.status === 'Active', client);
-    }
+      // Sync active status
+      if (data.status) {
+        await usersRepository.updateActiveStatus(linkedUserId, data.status === 'Active', client);
+      }
 
-    // Sync password if provided and not empty
-    if (data.password && data.password.trim() !== '') {
-      const passwordHash = await bcrypt.hash(data.password, env.BCRYPT_SALT_ROUNDS);
-      await usersRepository.updatePasswordHash(current.user_id, passwordHash, client);
+      // Sync password if provided and not empty
+      if (data.password && data.password.trim() !== '') {
+        const passwordHash = await bcrypt.hash(data.password, env.BCRYPT_SALT_ROUNDS);
+        await usersRepository.updatePasswordHash(linkedUserId, passwordHash, client);
+      }
     }
 
     return await receptionistsRepository.update(id, data, client);

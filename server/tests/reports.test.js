@@ -48,7 +48,7 @@ describe('Reports API', () => {
     expect(Array.isArray(res.body.data.items)).toBe(true);
   });
 
-  it('returns investigations report data structure', async () => {
+  it('returns investigations report data structure with tests count and revenue', async () => {
     const res = await request(app)
       .get('/api/reports/investigations')
       .set('Authorization', `Bearer ${token}`)
@@ -56,8 +56,33 @@ describe('Reports API', () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.totalTestsOrdered).toBeDefined();
+    expect(res.body.data.totalCollected).toBeDefined();
     expect(Array.isArray(res.body.data.trend)).toBe(true);
     expect(res.body.data.trend.length).toBe(7);
     expect(Array.isArray(res.body.data.items)).toBe(true);
+  });
+
+  it('returns consultations report data structure with revenue, trend, and items', async () => {
+    const res = await request(app)
+      .get('/api/reports/consultations')
+      .set('Authorization', `Bearer ${token}`)
+      .query({ dateFrom: '2026-01-01', dateTo: '2026-12-31' });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.totalCollected).toBeDefined();
+    expect(typeof res.body.data.totalCollected).toBe('number');
+    expect(Array.isArray(res.body.data.trend)).toBe(true);
+    expect(res.body.data.trend.length).toBe(7);
+    expect(Array.isArray(res.body.data.items)).toBe(true);
+  });
+
+  it('correctly returns zero revenue and empty items when date range has no activity', async () => {
+    const res = await request(app)
+      .get('/api/reports/consultations')
+      .set('Authorization', `Bearer ${token}`)
+      .query({ dateFrom: '2010-01-01', dateTo: '2010-01-02' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.totalCollected).toBe(0);
+    expect(res.body.data.items).toEqual([]);
   });
 });
