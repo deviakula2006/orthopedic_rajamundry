@@ -313,3 +313,223 @@ export async function resetPassword({ username, resetToken, newPassword }) {
     message: 'Password has been reset successfully. You can now log in with your new password.'
   };
 }
+
+// ---------------------------------------------------------------------------
+// Two-Option Password Recovery Workflow (Email-First, Registered vs Hospital)
+// ---------------------------------------------------------------------------
+
+export function maskEmail(email) {
+  if (!email || !email.includes('@')) return '******';
+  const [local, domain] = email.split('@');
+  if (local.length <= 2) {
+    return `${local[0]}*****@${domain}`;
+  }
+  return `${local[0]}*****${local[local.length - 1]}@${domain}`;
+}
+
+export async function initiatePasswordRecovery({ email }) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const user = await usersRepository.findByRegisteredEmail(normalizedEmail);
+  const settings = await hospitalSettingsRepository.get();
+  const hospitalEmail = settings?.email || 'akuladevigangabhavani@gmail.com';
+
+  const recoverySessionId = crypto.randomBytes(32).toString('hex');
+
+  if (user && user.is_active && !user.deleted_at) {
+    // Invalidate previous active sessions for this user
+    await query('UPDATE password_reset_otps SET is_used = TRUE WHERE user_id = $1 AND is_used = FALSE', [user.id]);
+
+    // Insert pending challenge record bound to this user and session ID
+    await query(
+      `INSERT INTO password_reset_otps (session_id, user_id, otp_hash, expires_at, delivery_method, recipient_email)
+       VALUES ($1, $2, 'PENDING_METHOD_SELECTION', now() + interval '15 minutes', 'registered_email', $3)`,
+      [recoverySessionId, user.id, user.email]
+    );
+  }
+
+  const accountFound = !!(user && user.is_active && !user.deleted_at);
+
+  return {
+    success: true,
+    accountFound,
+    recoverySessionId,
+    options: [
+      {
+        id: 'registered_email',
+        label: 'Send OTP to my registered email',
+        description: 'Receive a password reset OTP at the email address registered with your hospital account.',
+        maskedDestination: maskEmail(user ? user.email : normalizedEmail)
+      },
+      {
+        id: 'hospital_email',
+        label: 'Try another way – Send OTP to Hospital Email',
+        description: "If you cannot access your registered email, request the OTP through the hospital's official recovery inbox.",
+        maskedDestination: maskEmail(hospitalEmail),
+        available: Boolean(hospitalEmail)
+      }
+    ]
+  };
+}
+
+export async function sendRecoveryOtp({ recoverySessionId, method }) {
+  const { rows } = await query(
+    `SELECT po.*, u.username, u.email AS user_email, u.is_active, u.deleted_at, r.name AS role
+     FROM password_reset_otps po
+     JOIN users u ON u.id = po.user_id
+     JOIN roles r ON r.id = u.role_id
+     WHERE po.session_id = $1 AND po.is_used = FALSE AND po.created_at > now() - interval '15 minutes'
+     ORDER BY po.created_at DESC LIMIT 1`,
+    [recoverySessionId]
+  );
+
+  const record = rows[0];
+  if (!record || !record.is_active || record.deleted_at) {
+    // Prevent account enumeration by returning generic response
+    return {
+      success: true,
+      deliveryMethod: method,
+      message: 'If an eligible account is registered, a verification code has been dispatched.'
+    };
+  }
+
+  // Rate limiting check: at least 30 seconds between successive dispatches
+  if (
+    record.otp_hash !== 'PENDING_METHOD_SELECTION' &&
+    record.last_sent_at &&
+    Date.now() - new Date(record.last_sent_at).getTime() < 30000
+  ) {
+    throw ApiError.tooManyRequests('Please wait a moment before requesting another verification code.');
+  }
+
+  let recipient;
+  if (method === 'registered_email') {
+    recipient = record.user_email;
+  } else if (method === 'hospital_email') {
+    const settings = await hospitalSettingsRepository.get();
+    recipient = settings?.email;
+    if (!recipient) {
+      throw ApiError.badRequest('Hospital recovery email is temporarily unavailable.');
+    }
+  } else {
+    throw ApiError.badRequest('Invalid recovery delivery method selected.');
+  }
+
+  const otp = String(crypto.randomInt(100000, 999999));
+  const otpHash = await bcrypt.hash(otp, env.BCRYPT_SALT_ROUNDS);
+
+  await query(
+    `UPDATE password_reset_otps
+     SET otp_hash = $2,
+         delivery_method = $3,
+         recipient_email = $4,
+         expires_at = now() + interval '5 minutes',
+         attempts = 0,
+         last_sent_at = now()
+     WHERE id = $1`,
+    [record.id, otpHash, method, recipient]
+  );
+
+  await sendOtpRecoveryEmail({
+    to: recipient,
+    username: record.username,
+    role: record.role,
+    otp,
+    deliveryMethod: method,
+    expiryMinutes: 5
+  });
+
+  return {
+    success: true,
+    deliveryMethod: method,
+    maskedRecipient: maskEmail(recipient),
+    message: `A single-use verification code has been dispatched to ${maskEmail(recipient)}.`
+  };
+}
+
+export async function verifyRecoveryOtp({ recoverySessionId, otp }) {
+  const { rows } = await query(
+    `SELECT po.*, u.username, u.is_active, u.deleted_at
+     FROM password_reset_otps po
+     JOIN users u ON u.id = po.user_id
+     WHERE po.session_id = $1 AND po.is_used = FALSE
+     ORDER BY po.created_at DESC LIMIT 1`,
+    [recoverySessionId]
+  );
+
+  const record = rows[0];
+  if (!record || record.otp_hash === 'PENDING_METHOD_SELECTION') {
+    throw ApiError.badRequest('Invalid or expired verification session. Please request a new code.');
+  }
+
+  if (new Date() > new Date(record.expires_at)) {
+    throw ApiError.badRequest('Verification code has expired. Please request a new code.');
+  }
+
+  if (record.attempts >= record.max_attempts) {
+    await query('UPDATE password_reset_otps SET is_used = TRUE WHERE id = $1', [record.id]);
+    throw ApiError.badRequest('Maximum verification attempts exceeded. Please request a new code.');
+  }
+
+  const matches = await bcrypt.compare(otp, record.otp_hash);
+  if (!matches) {
+    await query('UPDATE password_reset_otps SET attempts = attempts + 1 WHERE id = $1', [record.id]);
+    throw ApiError.badRequest('Invalid verification code. Please check and try again.');
+  }
+
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+
+  await query(
+    `UPDATE password_reset_otps
+     SET reset_token_hash = $2,
+         expires_at = now() + interval '10 minutes'
+     WHERE id = $1`,
+    [record.id, tokenHash]
+  );
+
+  return { success: true, resetToken };
+}
+
+export async function resetRecoveryPassword({ recoverySessionId, resetToken, newPassword }) {
+  const tokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+
+  const { rows } = await query(
+    `SELECT po.*, u.username, u.full_name, u.is_active, u.deleted_at
+     FROM password_reset_otps po
+     JOIN users u ON u.id = po.user_id
+     WHERE po.session_id = $1 AND po.reset_token_hash = $2 AND po.is_used = FALSE AND po.expires_at > now()
+     ORDER BY po.created_at DESC LIMIT 1`,
+    [recoverySessionId, tokenHash]
+  );
+
+  const record = rows[0];
+  if (!record) {
+    throw ApiError.badRequest('Invalid or expired reset session. Please request a new code.');
+  }
+
+  if (!record.is_active || record.deleted_at) {
+    throw ApiError.badRequest('Account is not eligible for password reset.');
+  }
+
+  const newHash = await bcrypt.hash(newPassword, env.BCRYPT_SALT_ROUNDS);
+
+  await withTransaction(async (client) => {
+    await usersRepository.updatePasswordHash(record.user_id, newHash, client);
+    await client.query('UPDATE password_reset_otps SET is_used = TRUE WHERE user_id = $1', [record.user_id]);
+
+    await logActivity({
+      userId: record.user_id,
+      actorName: record.full_name,
+      action: `Password reset successfully via ${record.delivery_method} for account ${record.username}`,
+      activityType: 'auth',
+      entityType: 'user',
+      entityId: record.user_id
+    });
+  });
+
+  return {
+    success: true,
+    username: record.username,
+    message: 'Password has been reset successfully. You can now log in with your new password.'
+  };
+}

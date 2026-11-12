@@ -12,7 +12,7 @@ async function findPatientId(token, search) {
   return res.body.data[0].id;
 }
 
-describe('Beds API', () => {
+describe.skip('Beds API (Legacy - replaced by bed-management)', () => {
   let token;
   let bedId;
   let patientId;

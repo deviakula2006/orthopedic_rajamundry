@@ -2353,6 +2353,42 @@ const toggleDoctorStatus = async (code) => {
     }
   };
 
+  const orderInvestigationsBatch = async (patientId, investigationIds, appointmentParam = null) => {
+    const targetPatient = patients.find(p => p.id === patientId || p.dbId === patientId || p.code === patientId);
+
+    let activeApt = appointmentParam;
+    if (activeApt && !activeApt.dbId) {
+      activeApt = appointments.find(a => a.id === activeApt.id || a.dbId === activeApt.id);
+    }
+    if (!activeApt) {
+      activeApt = appointments.find(
+        a => (a.patientId === patientId || a.patientId === targetPatient?.code || a.patientId === targetPatient?.id) &&
+             a.status !== 'Completed' && a.status !== 'Cancelled'
+      );
+    }
+
+    try {
+      let payload = { investigationIds };
+
+      if (activeApt) {
+        const consRes = await apiClient.get(`/consultations/appointment/${activeApt.dbId}`);
+        payload.consultationId = consRes.data?.data?.id;
+      } else {
+        payload.patientId = targetPatient?.dbId || patientId;
+      }
+
+      const res = await apiClient.post('/consultations/investigations/batch', payload);
+      const results = res.data?.data || [];
+
+      showToast(`${results.length} investigation(s) ordered successfully!`);
+      await Promise.all([fetchAll(), refreshActivities()]);
+      return results;
+    } catch (error) {
+      reportError(error, 'Failed to order investigations');
+      return null;
+    }
+  };
+
   const getPendingInvestigations = async (patientId) => {
     if (!patientId) return [];
     const targetPatient = patients.find(p => p.id === patientId || p.dbId === patientId || p.code === patientId);
@@ -2651,6 +2687,17 @@ const toggleDoctorStatus = async (code) => {
      HOSPITAL SETTINGS
   ========================================================================== */
 
+  const refreshHospitalSettings = async () => {
+    try {
+      const response = await apiClient.get('/hospital-settings');
+      setHospitalSettings(response.data.data);
+      return response.data.data;
+    } catch (error) {
+      reportError(error, 'Failed to refresh hospital settings');
+      return undefined;
+    }
+  };
+
   const updateHospitalSettings = async (
     data
   ) => {
@@ -2730,6 +2777,7 @@ const toggleDoctorStatus = async (code) => {
 
     addVitals,
     orderInvestigation,
+    orderInvestigationsBatch,
     getPendingInvestigations,
     addPrescription,
     addConsultationSummary,
@@ -2741,6 +2789,7 @@ const toggleDoctorStatus = async (code) => {
     getBillDetail,
     updateBillStatus,
 
+    refreshHospitalSettings,
     updateHospitalSettings
   };
 

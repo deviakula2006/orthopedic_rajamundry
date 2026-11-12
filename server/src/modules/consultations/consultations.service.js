@@ -8,7 +8,7 @@ import {
   serializeConsultationInvestigation
 } from './consultations.serializer.js';
 import { ApiError } from '../../utils/ApiError.js';
-import { query } from '../../config/db.js';
+import { query, withTransaction } from '../../config/db.js';
 import { logActivity } from '../activities/activities.repository.js';
 
 async function resolveAppointmentId(appointmentIdOrCode) {
@@ -223,4 +223,71 @@ export async function cancelInvestigationOrder(orderId, actor) {
     entityId: orderId
   });
   return { id: orderId, status: 'Cancelled' };
+}
+
+export async function orderInvestigationsBatch(data, actor) {
+  // Resolve patient and optional consultation once — reuse for all items
+  let consultationId = data.consultationId || null;
+  let patientId = data.patientId || null;
+
+  if (consultationId) {
+    const currentCons = await consultationsRepository.findById(consultationId);
+    if (!currentCons) throw ApiError.notFound('Consultation not found');
+    patientId = currentCons.patientId || currentCons.patient_id;
+  } else if (data.appointmentId) {
+    const resolvedAptId = await resolveAppointmentId(data.appointmentId);
+    const cons = await consultationsRepository.getOrCreateForAppointment(resolvedAptId);
+    if (!cons) throw ApiError.notFound('Consultation for appointment not found');
+    consultationId = cons.id;
+    patientId = cons.patientId || cons.patient_id;
+  } else if (patientId) {
+    patientId = await resolvePatientId(patientId);
+  } else {
+    throw ApiError.badRequest('Either consultationId, appointmentId, or patientId must be provided');
+  }
+
+  // Validate and resolve all investigation catalog items upfront
+  const resolved = await Promise.all(
+    data.investigationIds.map(async (invId) => {
+      const inv = await investigationsRepository.findById(invId);
+      if (!inv) throw ApiError.notFound(`Investigation not found: ${invId}`);
+      return { investigationId: inv.id, testName: inv.test_name };
+    })
+  );
+
+  // Insert all orders inside a single transaction — roll back all on any failure
+  const rows = await withTransaction(async (client) => {
+    const results = [];
+    for (const { investigationId, testName } of resolved) {
+      const row = await consultationsRepository.orderInvestigation(
+        {
+          consultationId,
+          patientId,
+          investigationId,
+          testName,
+          orderedByUserId: actor?.id || null,
+          orderedByName: actor?.name || null
+        },
+        client
+      );
+      results.push(row);
+    }
+    return results;
+  });
+
+  // Log activity for each ordered investigation
+  await Promise.all(
+    rows.map((row) =>
+      logActivity({
+        userId: actor?.id || null,
+        actorName: actor?.name || 'Staff',
+        action: `Ordered investigation test: ${row.test_name}`,
+        activityType: 'medical',
+        entityType: 'investigation',
+        entityId: row.id
+      })
+    )
+  );
+
+  return rows.map(serializeConsultationInvestigation);
 }

@@ -1,17 +1,44 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useHospital } from '../../context/HospitalContext';
-import { User, Shield, Building, Save, Sliders, Plus, Edit2, CheckCircle2, XCircle, Percent, Layers } from 'lucide-react';
+import {
+  User,
+  Shield,
+  Building,
+  Save,
+  Sliders,
+  Plus,
+  Edit2,
+  CheckCircle2,
+  XCircle,
+  Percent,
+  Layers,
+  Mail,
+  ShieldCheck,
+  AlertCircle,
+  RefreshCw,
+  KeyRound,
+  ArrowRight
+} from 'lucide-react';
 import { Modal } from '../../components/ui/Modal';
+import apiClient from '../../services/api';
 
 // Hospital Metadata Form
-const HospitalMetadataForm = ({ settings, onSave }) => {
+const HospitalMetadataForm = ({ settings, onSave, onRefreshSettings, showToast }) => {
   const [hospName, setHospName] = useState(settings?.name || '');
   const [hospAddr, setHospAddr] = useState(settings?.address || '');
   const [hospContact, setHospContact] = useState(settings?.contactPhone || '');
   const [hospLic, setHospLic] = useState(settings?.licenseNumber || '');
-  const [hospEmail, setHospEmail] = useState(settings?.email || 'akuladevigangabhavani@gmail.com');
   const [isSaving, setIsSaving] = useState(false);
+
+  // Recovery email verification modal state
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [emailModalStep, setEmailModalStep] = useState(1); // 1: enter email, 2: enter otp
+  const [newEmail, setNewEmail] = useState('');
+  const [emailOtp, setEmailOtp] = useState('');
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [emailSuccessMsg, setEmailSuccessMsg] = useState('');
 
   useEffect(() => {
     if (settings) {
@@ -19,7 +46,6 @@ const HospitalMetadataForm = ({ settings, onSave }) => {
       setHospAddr(settings.address || '');
       setHospContact(settings.contactPhone || '');
       setHospLic(settings.licenseNumber || '');
-      setHospEmail(settings.email || 'akuladevigangabhavani@gmail.com');
     }
   }, [settings]);
 
@@ -31,88 +57,308 @@ const HospitalMetadataForm = ({ settings, onSave }) => {
         name: hospName,
         address: hospAddr,
         contactPhone: hospContact,
-        licenseNumber: hospLic,
-        email: hospEmail
+        licenseNumber: hospLic
       });
     } finally {
       setIsSaving(false);
     }
   };
 
+  const handleOpenEmailModal = () => {
+    setEmailModalStep(1);
+    setNewEmail('');
+    setEmailOtp('');
+    setEmailError('');
+    setEmailSuccessMsg('');
+    setEmailLoading(false);
+    setIsEmailModalOpen(true);
+  };
+
+  const handleRequestEmailChange = async (e) => {
+    e.preventDefault();
+    setEmailError('');
+    setEmailLoading(true);
+
+    try {
+      const res = await apiClient.post('/hospital-settings/recovery-email/request', {
+        email: newEmail.trim().toLowerCase()
+      });
+      setEmailSuccessMsg(res.data?.data?.message || 'Verification code sent to new email.');
+      setEmailModalStep(2);
+    } catch (err) {
+      setEmailError(err.response?.data?.error?.message || 'Failed to send verification code.');
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
+  const handleVerifyEmailChange = async (e) => {
+    e.preventDefault();
+    setEmailError('');
+    setEmailLoading(true);
+
+    try {
+      const res = await apiClient.post('/hospital-settings/recovery-email/verify', {
+        otp: emailOtp.trim()
+      });
+      if (showToast) {
+        showToast(res.data?.data?.message || 'Hospital recovery email updated successfully!');
+      }
+      if (onRefreshSettings) {
+        await onRefreshSettings();
+      }
+      setIsEmailModalOpen(false);
+    } catch (err) {
+      setEmailError(err.response?.data?.error?.message || 'Invalid or expired verification code.');
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      <h3 className="text-base font-bold text-slate-800 border-b pb-3 mb-4">Hospital Organization Details</h3>
+    <>
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <h3 className="text-base font-bold text-slate-800 border-b pb-3 mb-4">Hospital Organization Details</h3>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Hospital Facility Name</label>
+            <input
+              type="text"
+              required
+              value={hospName}
+              onChange={(e) => setHospName(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">License Registration No</label>
+            <input
+              type="text"
+              required
+              value={hospLic}
+              onChange={(e) => setHospLic(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Contact Landline / Phone</label>
+            <input
+              type="text"
+              required
+              value={hospContact}
+              onChange={(e) => setHospContact(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+              Hospital Recovery Email <span className="text-hospital-600 font-semibold">(Password Recovery Destination)</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="email"
+                  disabled
+                  value={settings?.email || 'akuladevigangabhavani@gmail.com'}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-100 py-2.5 pl-3.5 pr-24 text-sm font-semibold text-slate-700 cursor-not-allowed select-all"
+                />
+                <span className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">
+                  <CheckCircle2 className="w-3 h-3" />
+                  Verified
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenEmailModal}
+                className="px-3.5 py-2.5 text-xs font-bold rounded-xl border border-hospital-200 bg-hospital-50 text-hospital-700 hover:bg-hospital-100 transition-colors shrink-0 cursor-pointer"
+              >
+                Change Email
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">
+              Changes require email verification via OTP before taking effect.
+            </p>
+          </div>
+        </div>
+
         <div>
-          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Hospital Facility Name</label>
+          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Facility Location / Address</label>
           <input
             type="text"
             required
-            value={hospName}
-            onChange={(e) => setHospName(e.target.value)}
+            value={hospAddr}
+            onChange={(e) => setHospAddr(e.target.value)}
             className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
           />
         </div>
-        <div>
-          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">License Registration No</label>
-          <input
-            type="text"
-            required
-            value={hospLic}
-            onChange={(e) => setHospLic(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-          />
-        </div>
-      </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Contact Landline / Phone</label>
-          <input
-            type="text"
-            required
-            value={hospContact}
-            onChange={(e) => setHospContact(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-          />
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="flex items-center gap-1.5 rounded-xl bg-hospital-500 px-5 py-2.5 text-sm font-bold text-white shadow-premium hover:bg-hospital-600 focus:outline-none disabled:opacity-60 cursor-pointer"
+          >
+            <Save className="h-4.5 w-4.5" />
+            <span>{isSaving ? 'Saving...' : 'Save Metadata'}</span>
+          </button>
         </div>
-        <div>
-          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-            Hospital Recovery Email <span className="text-hospital-600 font-semibold">(Password Recovery Destination)</span>
-          </label>
-          <input
-            type="email"
-            required
-            value={hospEmail}
-            onChange={(e) => setHospEmail(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-          />
-        </div>
-      </div>
+      </form>
 
-      <div>
-        <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Facility Location / Address</label>
-        <input
-          type="text"
-          required
-          value={hospAddr}
-          onChange={(e) => setHospAddr(e.target.value)}
-          className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none"
-        />
-      </div>
-
-      <div>
-        <button
-          type="submit"
-          disabled={isSaving}
-          className="flex items-center gap-1.5 rounded-xl bg-hospital-500 px-5 py-2.5 text-sm font-bold text-white shadow-premium hover:bg-hospital-600 focus:outline-none disabled:opacity-60 cursor-pointer"
+      {/* Change Recovery Email Verification Modal */}
+      {isEmailModalOpen && (
+        <Modal
+          isOpen={isEmailModalOpen}
+          onClose={() => setIsEmailModalOpen(false)}
+          title="Update Hospital Recovery Email"
+          size="sm"
         >
-          <Save className="h-4.5 w-4.5" />
-          <span>{isSaving ? 'Saving...' : 'Save Metadata'}</span>
-        </button>
-      </div>
-    </form>
+          {emailError && (
+            <div className="flex items-start gap-2 p-3 mb-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-rose-600" />
+              <span>{emailError}</span>
+            </div>
+          )}
+
+          {emailModalStep === 1 ? (
+            <form onSubmit={handleRequestEmailChange} className="space-y-4">
+              <div className="p-3 rounded-xl bg-blue-50 border border-blue-100 text-blue-900 text-xs leading-relaxed">
+                <p className="font-semibold flex items-center gap-1.5 mb-1 text-blue-700">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  Security Verification Required
+                </p>
+                Enter the new hospital recovery email. A 6-digit confirmation code will be sent to this inbox to verify ownership before it is activated.
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                  Current Verified Email
+                </label>
+                <input
+                  type="text"
+                  disabled
+                  value={settings?.email || 'None'}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-100 py-2 px-3 text-xs font-mono text-slate-500 cursor-not-allowed"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                  New Recovery Email <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    required
+                    autoFocus
+                    placeholder="e.g. recovery@hospital.org"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-3 text-sm font-semibold text-slate-800 focus:border-hospital-500 focus:bg-white focus:outline-none"
+                  />
+                  <Mail className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t">
+                <button
+                  type="button"
+                  onClick={() => setIsEmailModalOpen(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={emailLoading || !newEmail.trim()}
+                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-hospital-500 hover:bg-hospital-600 rounded-xl shadow-premium disabled:opacity-60 cursor-pointer"
+                >
+                  {emailLoading ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Sending Code...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Send Verification Code</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <form onSubmit={handleVerifyEmailChange} className="space-y-4">
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-800 text-xs leading-relaxed">
+                <p className="font-bold flex items-center gap-1 text-emerald-700 mb-0.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Code Dispatched!
+                </p>
+                {emailSuccessMsg || `A verification code was sent to ${newEmail}.`}
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
+                  Enter 6-Digit Code <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  maxLength={10}
+                  placeholder="123456"
+                  value={emailOtp}
+                  onChange={(e) => setEmailOtp(e.target.value)}
+                  className="w-full text-center tracking-[0.25em] font-mono text-lg font-bold rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3 text-slate-800 focus:border-hospital-500 focus:bg-white focus:outline-none"
+                />
+                <p className="text-[11px] text-slate-400 mt-1 text-center">
+                  Valid for 10 minutes.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t">
+                <button
+                  type="button"
+                  onClick={() => setEmailModalStep(1)}
+                  className="text-xs font-bold text-hospital-600 hover:underline cursor-pointer"
+                >
+                  ← Back to email
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEmailModalOpen(false)}
+                    className="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={emailLoading || !emailOtp.trim()}
+                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-hospital-500 hover:bg-hospital-600 rounded-xl shadow-premium disabled:opacity-60 cursor-pointer"
+                  >
+                    {emailLoading ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Verifying...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>Confirm &amp; Activate</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </form>
+          )}
+        </Modal>
+      )}
+    </>
   );
 };
 
@@ -488,6 +734,7 @@ const Settings = () => {
     showToast,
     hospitalSettings,
     updateHospitalSettings,
+    refreshHospitalSettings,
     appointmentTypes,
     addAppointmentType,
     updateAppointmentType,
@@ -622,7 +869,12 @@ const Settings = () => {
 
           {activeTab === 'hospital' &&
             (hospitalSettings ? (
-              <HospitalMetadataForm settings={hospitalSettings} onSave={updateHospitalSettings} />
+              <HospitalMetadataForm
+                settings={hospitalSettings}
+                onSave={updateHospitalSettings}
+                onRefreshSettings={refreshHospitalSettings}
+                showToast={showToast}
+              />
             ) : (
               <p className="text-sm text-slate-400">Loading hospital details…</p>
             ))}

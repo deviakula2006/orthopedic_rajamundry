@@ -76,3 +76,14 @@ export const orderInvestigationSchema = z
   .refine((data) => data.investigationId || data.testName, {
     message: 'Either investigationId or testName must be provided'
   });
+
+export const orderInvestigationsBatchSchema = z
+  .object({
+    consultationId: z.string().uuid().optional(),
+    patientId: z.string().uuid().optional(),
+    appointmentId: z.string().uuid().optional(),
+    investigationIds: z.array(z.string().uuid()).min(1, 'Select at least one investigation')
+  })
+  .refine((data) => data.consultationId || data.patientId || data.appointmentId, {
+    message: 'Either consultationId, patientId, or appointmentId must be provided'
+  });

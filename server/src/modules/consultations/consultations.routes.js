@@ -8,7 +8,8 @@ import {
   createVitalsSchema,
   createPrescriptionSchema,
   createPrescriptionsBatchSchema,
-  orderInvestigationSchema
+  orderInvestigationSchema,
+  orderInvestigationsBatchSchema
 } from './consultations.schema.js';
 import * as controller from './consultations.controller.js';
 
@@ -53,6 +54,13 @@ consultationsRouter.post(
   requireRole('Doctor', 'Admin'),
   validate({ body: createPrescriptionsBatchSchema }),
   controller.addPrescriptionsBatch
+);
+
+consultationsRouter.post(
+  '/investigations/batch',
+  requireRole('Admin', 'Receptionist', 'Doctor'),
+  validate({ body: orderInvestigationsBatchSchema }),
+  controller.orderInvestigationsBatch
 );
 
 consultationsRouter.post(

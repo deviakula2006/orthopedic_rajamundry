@@ -8,7 +8,11 @@ import {
   changePasswordSchema,
   forgotPasswordRequestSchema,
   forgotPasswordVerifySchema,
-  forgotPasswordResetSchema
+  forgotPasswordResetSchema,
+  initiateRecoverySchema,
+  sendRecoveryOtpSchema,
+  verifyRecoveryOtpSchema,
+  resetRecoveryPasswordSchema
 } from './auth.schema.js';
 import * as authController from './auth.controller.js';
 
@@ -25,7 +29,36 @@ authRouter.patch(
   authController.changePassword
 );
 
-// Forgot Password OTP Recovery Flow
+// Two-Option OTP Recovery Flow (Email-First)
+authRouter.post(
+  '/forgot-password/initiate',
+  authRateLimiter,
+  validate({ body: initiateRecoverySchema }),
+  authController.initiateRecovery
+);
+
+authRouter.post(
+  '/forgot-password/send-otp',
+  authRateLimiter,
+  validate({ body: sendRecoveryOtpSchema }),
+  authController.sendRecoveryOtp
+);
+
+authRouter.post(
+  '/forgot-password/verify-otp',
+  authRateLimiter,
+  validate({ body: verifyRecoveryOtpSchema }),
+  authController.verifyRecoveryOtp
+);
+
+authRouter.post(
+  '/forgot-password/reset-password',
+  authRateLimiter,
+  validate({ body: resetRecoveryPasswordSchema }),
+  authController.resetRecoveryPassword
+);
+
+// Legacy Username-based Forgot Password Flow (Backwards compatibility)
 authRouter.post(
   '/forgot-password/request',
   authRateLimiter,

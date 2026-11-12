@@ -40,3 +40,28 @@ export const forgotPasswordReset = asyncHandler(async (req, res) => {
   const result = await authService.resetPassword({ username, resetToken, newPassword });
   sendSuccess(res, { data: result });
 });
+
+// Two-Option Recovery Endpoints
+export const initiateRecovery = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  const result = await authService.initiatePasswordRecovery({ email });
+  sendSuccess(res, { data: result });
+});
+
+export const sendRecoveryOtp = asyncHandler(async (req, res) => {
+  const { recoverySessionId, method } = req.body;
+  const result = await authService.sendRecoveryOtp({ recoverySessionId, method });
+  sendSuccess(res, { data: result });
+});
+
+export const verifyRecoveryOtp = asyncHandler(async (req, res) => {
+  const { recoverySessionId, otp } = req.body;
+  const result = await authService.verifyRecoveryOtp({ recoverySessionId, otp });
+  sendSuccess(res, { data: result });
+});
+
+export const resetRecoveryPassword = asyncHandler(async (req, res) => {
+  const { recoverySessionId, resetToken, newPassword } = req.body;
+  const result = await authService.resetRecoveryPassword({ recoverySessionId, resetToken, newPassword });
+  sendSuccess(res, { data: result });
+});

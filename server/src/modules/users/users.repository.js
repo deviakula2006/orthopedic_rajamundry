@@ -17,6 +17,20 @@ export async function findByUsername(identifier, client) {
   return rows[0] ?? null;
 }
 
+/** Find active, non-deleted user by registered email (case-insensitive). */
+export async function findByRegisteredEmail(email, client) {
+  const q = client ? client.query.bind(client) : query;
+  const { rows } = await q(
+    `SELECT ${SELECT_FIELDS} FROM users u JOIN roles r ON r.id = u.role_id
+     WHERE LOWER(TRIM(u.email)) = LOWER(TRIM($1))
+       AND u.deleted_at IS NULL
+       AND u.is_active = TRUE
+       AND r.name IN ('Admin', 'Doctor', 'Receptionist')`,
+    [email]
+  );
+  return rows[0] ?? null;
+}
+
 /** Legacy function used by auth.service.js login — now delegates to username-only lookup. */
 export async function findByUsernameOrEmail(identifier, client) {
   return findByUsername(identifier, client);

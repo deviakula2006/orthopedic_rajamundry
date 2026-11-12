@@ -11,3 +11,13 @@ export const update = asyncHandler(async (req, res) => {
   const settings = await hospitalSettingsService.updateHospitalSettings(req.body, req.user);
   sendSuccess(res, { data: settings });
 });
+
+export const requestRecoveryEmailChange = asyncHandler(async (req, res) => {
+  const result = await hospitalSettingsService.requestRecoveryEmailChange(req.body, req.user);
+  sendSuccess(res, { data: result });
+});
+
+export const verifyRecoveryEmailChange = asyncHandler(async (req, res) => {
+  const result = await hospitalSettingsService.verifyRecoveryEmailChange(req.body, req.user);
+  sendSuccess(res, { data: result });
+});

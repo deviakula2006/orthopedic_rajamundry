@@ -12,3 +12,11 @@ export const updateHospitalSettingsSchema = z
   .refine((data) => Object.values(data).some((v) => v !== undefined), {
     message: 'At least one field must be provided'
   });
+
+export const requestRecoveryEmailChangeSchema = z.object({
+  email: z.string().trim().email('Valid email address is required').max(150)
+});
+
+export const verifyRecoveryEmailChangeSchema = z.object({
+  otp: z.string().trim().min(4, 'Verification code must be at least 4 digits').max(10)
+});

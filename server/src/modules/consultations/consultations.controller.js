@@ -60,6 +60,11 @@ export const orderInvestigation = asyncHandler(async (req, res) => {
   sendSuccess(res, { statusCode: 201, data: inv });
 });
 
+export const orderInvestigationsBatch = asyncHandler(async (req, res) => {
+  const results = await consultationsService.orderInvestigationsBatch(req.body, req.user);
+  sendSuccess(res, { statusCode: 201, data: results });
+});
+
 export const cancelInvestigation = asyncHandler(async (req, res) => {
   const result = await consultationsService.cancelInvestigationOrder(req.params.id, req.user);
   sendSuccess(res, { data: result });

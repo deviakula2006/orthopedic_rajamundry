@@ -58,3 +58,31 @@ export const forgotPasswordResetSchema = z
     message: 'Passwords do not match',
     path: ['confirmPassword']
   });
+
+// --- Two-Option Recovery Schemas ---
+
+export const initiateRecoverySchema = z.object({
+  email: z.string().trim().email('Valid registered email address is required')
+});
+
+export const sendRecoveryOtpSchema = z.object({
+  recoverySessionId: z.string().trim().min(1, 'Recovery session ID is required'),
+  method: z.enum(['registered_email', 'hospital_email'])
+});
+
+export const verifyRecoveryOtpSchema = z.object({
+  recoverySessionId: z.string().trim().min(1, 'Recovery session ID is required'),
+  otp: z.string().trim().min(4, 'Verification code must be at least 4 digits').max(10)
+});
+
+export const resetRecoveryPasswordSchema = z
+  .object({
+    recoverySessionId: z.string().trim().min(1, 'Recovery session ID is required'),
+    resetToken: z.string().trim().min(1, 'Reset session token is required'),
+    newPassword: z.string().min(8, 'New password must be at least 8 characters'),
+    confirmPassword: z.string().min(8, 'Confirm password must be at least 8 characters')
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword']
+  });
