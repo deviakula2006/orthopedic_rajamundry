@@ -20,6 +20,28 @@ export async function getBill(id) {
   return serializeBill(row, items);
 }
 
+export async function getPendingInvestigations(patientId) {
+  if (!patientId) throw ApiError.badRequest('Patient ID is required');
+  const patient = await patientsRepository.findById(patientId);
+  if (!patient) throw ApiError.notFound('Patient not found');
+  const rows = await billsRepository.getPendingInvestigations(patientId);
+  return rows.map((r) => ({
+    id: r.id,
+    orderId: r.id,
+    consultationId: r.consultation_id,
+    patientId: r.patient_id,
+    investigationId: r.investigation_id,
+    investigationCode: r.investigation_code,
+    testName: r.test_name,
+    category: r.category,
+    price: Number(r.price),
+    clinicalStatus: r.clinical_status,
+    billingStatus: r.billing_status || 'Unbilled',
+    orderedAt: r.ordered_at,
+    orderedBy: r.ordered_by
+  }));
+}
+
 export async function createBill(data, actor) {
   const { items, discount = 0 } = data;
 
@@ -29,6 +51,20 @@ export async function createBill(data, actor) {
   if (data.doctorId) {
     const doctor = await doctorsRepository.findById(data.doctorId);
     if (!doctor) throw ApiError.notFound('Doctor not found');
+  }
+
+  // Identify any linked investigation orders
+  const invOrderItems = items.filter(
+    (it) => it.consultationInvestigationId || (it.itemType === 'Investigation' && it.orderId)
+  );
+  const invOrderIds = invOrderItems.map(
+    (it) => it.consultationInvestigationId || it.orderId
+  );
+
+  // Guard against duplicate orders in the same request payload
+  const uniqueOrderIds = new Set(invOrderIds);
+  if (uniqueOrderIds.size !== invOrderIds.length) {
+    throw ApiError.badRequest('Duplicate investigation orders in invoice items');
   }
 
   // Retrieve configured GST rate from hospital settings
@@ -46,13 +82,49 @@ export async function createBill(data, actor) {
   const total = taxableAmount + tax;
 
   const result = await withTransaction(async (client) => {
+    // If invoice includes investigation orders, lock their rows and verify eligibility
+    if (invOrderIds.length > 0) {
+      const lockedRows = await billsRepository.lockAndVerifyInvestigationOrders(invOrderIds, client);
+      const lockedMap = new Map(lockedRows.map((r) => [r.id, r]));
+
+      for (const orderId of invOrderIds) {
+        const orderRow = lockedMap.get(orderId);
+        if (!orderRow) {
+          throw ApiError.notFound(`Investigation order ${orderId} not found`);
+        }
+        if (orderRow.patient_id !== data.patientId) {
+          throw ApiError.badRequest(`Investigation "${orderRow.test_name}" does not belong to the selected patient.`);
+        }
+        if (orderRow.bill_id || orderRow.billing_status === 'Billed') {
+          throw ApiError.conflict(`Investigation "${orderRow.test_name}" has already been billed.`);
+        }
+        if (orderRow.clinical_status === 'Cancelled' || orderRow.deleted_at) {
+          throw ApiError.badRequest(`Investigation "${orderRow.test_name}" is cancelled and cannot be billed.`);
+        }
+      }
+    }
+
     const header = await billsRepository.createBillHeader(
       { ...data, subTotal, discount, tax, total },
       client
     );
+
     for (const item of items) {
-      await billsRepository.insertItem({ billId: header.id, ...item }, client);
+      const orderId = item.consultationInvestigationId || item.orderId || null;
+      await billsRepository.insertItem(
+        {
+          billId: header.id,
+          ...item,
+          consultationInvestigationId: orderId
+        },
+        client
+      );
     }
+
+    if (invOrderIds.length > 0) {
+      await billsRepository.linkInvestigationOrdersToBill(invOrderIds, header.id, client);
+    }
+
     return billsRepository.findById(header.id, client);
   });
 

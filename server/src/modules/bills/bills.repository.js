@@ -59,7 +59,7 @@ export async function findById(id, client = { query }) {
 
 export async function listItems(billId) {
   const { rows } = await query(
-    `SELECT bi.id, bi.investigation_id, bi.description, bi.item_type, bi.quantity, bi.amount
+    `SELECT bi.id, bi.investigation_id, bi.consultation_investigation_id, bi.description, bi.item_type, bi.quantity, bi.amount
      FROM bill_items bi
      JOIN bills b ON bi.bill_id = b.id
      WHERE b.id::text = $1 OR b.invoice_no = $1
@@ -93,11 +93,93 @@ export async function createBillHeader(
   return rows[0];
 }
 
-export async function insertItem({ billId, description, itemType, quantity, amount, investigationId }, client) {
+export async function insertItem(
+  { billId, description, itemType, quantity, amount, investigationId, consultationInvestigationId },
+  client
+) {
   await client.query(
-    `INSERT INTO bill_items (bill_id, investigation_id, description, item_type, quantity, amount)
-     VALUES ($1, $2, $3, $4::bill_item_type, COALESCE($5, 1), $6)`,
-    [billId, investigationId ?? null, description, itemType, quantity ?? null, amount]
+    `INSERT INTO bill_items (bill_id, investigation_id, consultation_investigation_id, description, item_type, quantity, amount)
+     VALUES ($1, $2, $3, $4, $5::bill_item_type, COALESCE($6, 1), $7)`,
+    [
+      billId,
+      investigationId ?? null,
+      consultationInvestigationId ?? null,
+      description,
+      itemType,
+      quantity ?? null,
+      amount
+    ]
+  );
+}
+
+export async function getPendingInvestigations(patientId, client = { query }) {
+  const q = client.query.bind(client);
+  const { rows } = await q(
+    `SELECT 
+       ci.id,
+       ci.consultation_id,
+       COALESCE(ci.patient_id, c.patient_id) AS patient_id,
+       ci.investigation_id,
+       ci.test_name,
+       ci.status AS clinical_status,
+       ci.billing_status,
+       ci.bill_id,
+       ci.ordered_at,
+       ci.completed_at,
+       ci.ordered_by_name,
+       COALESCE(ci.ordered_by_name, d.name, u.username, 'Hospital Staff') AS ordered_by,
+       COALESCE(inv.investigation_code, inv_by_name.investigation_code, 'INV') AS investigation_code,
+       COALESCE(inv.category, inv_by_name.category, 'Diagnostic') AS category,
+       COALESCE(inv.price, inv_by_name.price, 0) AS price
+     FROM consultation_investigations ci
+     LEFT JOIN consultations c ON c.id = ci.consultation_id
+     LEFT JOIN doctors d ON d.id = c.doctor_id
+     LEFT JOIN users u ON u.id = ci.ordered_by_user_id
+     LEFT JOIN investigations inv ON inv.id = ci.investigation_id
+     LEFT JOIN investigations inv_by_name ON LOWER(inv_by_name.test_name) = LOWER(ci.test_name)
+     WHERE (ci.patient_id = $1 OR c.patient_id = $1)
+       AND (ci.billing_status = 'Unbilled' OR ci.billing_status IS NULL)
+       AND ci.bill_id IS NULL
+       AND ci.status <> 'Cancelled'
+       AND ci.deleted_at IS NULL
+     ORDER BY ci.ordered_at DESC, ci.id DESC`,
+    [patientId]
+  );
+  return rows;
+}
+
+export async function lockAndVerifyInvestigationOrders(orderIds, client) {
+  const { rows } = await client.query(
+    `SELECT 
+       ci.id,
+       COALESCE(ci.patient_id, c.patient_id) AS patient_id,
+       ci.bill_id,
+       ci.billing_status,
+       ci.status AS clinical_status,
+       ci.test_name,
+       ci.deleted_at,
+       ci.investigation_id,
+       COALESCE(inv.investigation_code, inv_by_name.investigation_code, 'INV') AS investigation_code,
+       COALESCE(inv.category, inv_by_name.category, 'Diagnostic') AS category,
+       COALESCE(inv.price, inv_by_name.price, 0) AS price
+     FROM consultation_investigations ci
+     LEFT JOIN consultations c ON c.id = ci.consultation_id
+     LEFT JOIN investigations inv ON inv.id = ci.investigation_id
+     LEFT JOIN investigations inv_by_name ON LOWER(inv_by_name.test_name) = LOWER(ci.test_name)
+     WHERE ci.id = ANY($1)
+     FOR UPDATE OF ci`,
+    [orderIds]
+  );
+  return rows;
+}
+
+export async function linkInvestigationOrdersToBill(orderIds, billId, client) {
+  if (!orderIds || !orderIds.length) return;
+  await client.query(
+    `UPDATE consultation_investigations
+     SET bill_id = $1, billing_status = 'Billed', billed_at = now()
+     WHERE id = ANY($2)`,
+    [billId, orderIds]
   );
 }
 

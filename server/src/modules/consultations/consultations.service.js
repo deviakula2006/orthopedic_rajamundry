@@ -1,4 +1,6 @@
 import * as consultationsRepository from './consultations.repository.js';
+import * as investigationsRepository from '../investigations/investigations.repository.js';
+import * as patientsRepository from '../patients/patients.repository.js';
 import {
   serializeConsultation,
   serializeVital,
@@ -143,14 +145,59 @@ export async function addPrescriptionsBatch({ consultationId, prescriptions }, a
 }
 
 export async function orderInvestigation(data, actor) {
-  const currentCons = await consultationsRepository.findById(data.consultationId);
-  if (!currentCons) throw ApiError.notFound('Consultation not found');
+  let consultationId = data.consultationId || null;
+  let patientId = data.patientId || null;
 
-  const invRow = await consultationsRepository.orderInvestigation(data);
+  if (consultationId) {
+    const currentCons = await consultationsRepository.findById(consultationId);
+    if (!currentCons) throw ApiError.notFound('Consultation not found');
+    patientId = currentCons.patientId || currentCons.patient_id;
+  } else if (data.appointmentId) {
+    const resolvedAptId = await resolveAppointmentId(data.appointmentId);
+    const cons = await consultationsRepository.getOrCreateForAppointment(resolvedAptId);
+    if (!cons) throw ApiError.notFound('Consultation for appointment not found');
+    consultationId = cons.id;
+    patientId = cons.patientId || cons.patient_id;
+  } else if (patientId) {
+    const resolvedPatId = await resolvePatientId(patientId);
+    patientId = resolvedPatId;
+  } else {
+    throw ApiError.badRequest('Either consultationId, appointmentId, or patientId must be provided');
+  }
+
+  let testName = data.testName?.trim();
+  let investigationId = data.investigationId || null;
+
+  if (!testName && investigationId) {
+    const inv = await investigationsRepository.findById(investigationId);
+    if (!inv) throw ApiError.notFound('Investigation catalog item not found');
+    testName = inv.test_name;
+  } else if (testName && !investigationId) {
+    const { rows: matchedInv } = await query(
+      `SELECT id FROM investigations WHERE LOWER(test_name) = LOWER($1) AND is_active = TRUE LIMIT 1`,
+      [testName]
+    );
+    if (matchedInv[0]) {
+      investigationId = matchedInv[0].id;
+    }
+  }
+
+  if (!testName) {
+    throw ApiError.badRequest('Investigation test name is required');
+  }
+
+  const invRow = await consultationsRepository.orderInvestigation({
+    consultationId,
+    patientId,
+    investigationId,
+    testName,
+    orderedByUserId: actor?.id || null,
+    orderedByName: actor?.name || null
+  });
 
   await logActivity({
-    userId: actor.id,
-    actorName: actor.name,
+    userId: actor?.id || null,
+    actorName: actor?.name || 'Staff',
     action: `Ordered investigation test: ${invRow.test_name}`,
     activityType: 'medical',
     entityType: 'investigation',
@@ -158,4 +205,22 @@ export async function orderInvestigation(data, actor) {
   });
 
   return serializeConsultationInvestigation(invRow);
+}
+
+export async function cancelInvestigationOrder(orderId, actor) {
+  const row = await consultationsRepository.findInvestigationOrderById(orderId);
+  if (!row) throw ApiError.notFound('Investigation order not found');
+  if (row.bill_id || row.billing_status === 'Billed') {
+    throw ApiError.badRequest('Cannot cancel an already-billed investigation order');
+  }
+  await consultationsRepository.cancelInvestigationOrder(orderId);
+  await logActivity({
+    userId: actor?.id || null,
+    actorName: actor?.name || 'Staff',
+    action: `Cancelled investigation test: ${row.test_name}`,
+    activityType: 'medical',
+    entityType: 'investigation',
+    entityId: orderId
+  });
+  return { id: orderId, status: 'Cancelled' };
 }

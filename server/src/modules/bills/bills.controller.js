@@ -28,3 +28,8 @@ export const updateStatus = asyncHandler(async (req, res) => {
   const bill = await billsService.updateBillStatus(req.params.id, req.body, req.user);
   sendSuccess(res, { data: bill });
 });
+
+export const getPendingInvestigations = asyncHandler(async (req, res) => {
+  const pending = await billsService.getPendingInvestigations(req.query.patientId);
+  sendSuccess(res, { data: pending });
+});

@@ -62,8 +62,17 @@ export const createPrescriptionsBatchSchema = z.object({
   })).min(1)
 });
 
-export const orderInvestigationSchema = z.object({
-  consultationId: z.string().uuid(),
-  investigationId: z.string().uuid().optional(),
-  testName: z.string().min(1).max(200)
-});
+export const orderInvestigationSchema = z
+  .object({
+    consultationId: z.string().uuid().optional(),
+    patientId: z.string().uuid().optional(),
+    appointmentId: z.string().uuid().optional(),
+    investigationId: z.string().uuid().optional(),
+    testName: z.string().min(1).max(200).optional()
+  })
+  .refine((data) => data.consultationId || data.patientId || data.appointmentId, {
+    message: 'Either consultationId, patientId, or appointmentId must be provided'
+  })
+  .refine((data) => data.investigationId || data.testName, {
+    message: 'Either investigationId or testName must be provided'
+  });

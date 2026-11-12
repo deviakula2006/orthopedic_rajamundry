@@ -59,3 +59,8 @@ export const orderInvestigation = asyncHandler(async (req, res) => {
   const inv = await consultationsService.orderInvestigation(req.body, req.user);
   sendSuccess(res, { statusCode: 201, data: inv });
 });
+
+export const cancelInvestigation = asyncHandler(async (req, res) => {
+  const result = await consultationsService.cancelInvestigationOrder(req.params.id, req.user);
+  sendSuccess(res, { data: result });
+});

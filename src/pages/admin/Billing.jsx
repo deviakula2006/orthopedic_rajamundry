@@ -9,7 +9,17 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 const Billing = () => {
-  const { bills, patients, doctors, investigations, appointmentTypes, hospitalSettings, addBill, updateBillStatus } = useHospital();
+  const {
+    bills,
+    patients,
+    doctors,
+    investigations,
+    appointmentTypes,
+    hospitalSettings,
+    addBill,
+    updateBillStatus,
+    getPendingInvestigations
+  } = useHospital();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
@@ -18,7 +28,7 @@ const Billing = () => {
   // Form states
   const [patientId, setPatientId] = useState('');
   const [doctorId, setDoctorId] = useState('');
-  const [billType, setBillType] = useState('Appointments'); // 'Appointments', 'Investigations', 'Combined'
+  const [billType, setBillType] = useState('Consultation'); // 'Consultation', 'Lab Investigations', 'Both'
   const [paymentMode, setPaymentMode] = useState('UPI');
   const [paymentStatus, setPaymentStatus] = useState('Paid');
   const [discount, setDiscount] = useState(0);
@@ -27,6 +37,8 @@ const Billing = () => {
   const [selectedApptTypeId, setSelectedApptTypeId] = useState('');
   const [selectedInvId, setSelectedInvId] = useState('');
   const [billItems, setBillItems] = useState([]);
+  const [pendingInvestigations, setPendingInvestigations] = useState([]);
+  const [loadingPendingInv, setLoadingPendingInv] = useState(false);
 
   // Search active patient/doctor names
   const activePatientObj = patients.find((p) => p.id === patientId || p.dbId === patientId || p.code === patientId);
@@ -45,17 +57,50 @@ const Billing = () => {
       displayName: `${t.name} (₹${t.defaultFee})`
     }));
 
+  // Patient change handler: refreshes pending investigation orders for the patient
+  const handlePatientChange = async (newPatientId) => {
+    setPatientId(newPatientId);
+    setBillItems([]);
+    if (!newPatientId) {
+      setPendingInvestigations([]);
+      return;
+    }
+    const pat = patients.find((p) => p.id === newPatientId || p.dbId === newPatientId || p.code === newPatientId);
+    const pid = pat?.dbId || newPatientId;
+    setLoadingPendingInv(true);
+    try {
+      const items = await getPendingInvestigations(pid);
+      setPendingInvestigations(items || []);
+    } catch (err) {
+      console.error('Failed to load pending investigations for patient:', err);
+      setPendingInvestigations([]);
+    } finally {
+      setLoadingPendingInv(false);
+    }
+  };
+
+  // Billing scope change handler
+  const handleBillTypeChange = (newType) => {
+    setBillType(newType);
+    if (newType === 'Consultation') {
+      setBillItems((prev) => prev.filter((it) => it.type !== 'Investigation'));
+    } else if (newType === 'Lab Investigations') {
+      setBillItems((prev) => prev.filter((it) => it.type === 'Investigation'));
+    }
+  };
+
   // Trigger when create modal opens
   const handleOpenCreate = () => {
     setPatientId('');
     setDoctorId('');
-    setBillType('Appointments');
+    setBillType('Consultation');
     setPaymentMode('UPI');
     setPaymentStatus('Paid');
     setDiscount(0);
     setSelectedApptTypeId('');
     setSelectedInvId('');
     setBillItems([]);
+    setPendingInvestigations([]);
     setIsCreateOpen(true);
   };
 
@@ -84,29 +129,32 @@ const Billing = () => {
     setSelectedApptTypeId('');
   };
 
-  // Add selected investigation item to invoice
-  const addInvestigationItem = () => {
-    if (!selectedInvId) return;
-    const invItem = investigations.find((i) => i.id === selectedInvId || i.dbId === selectedInvId);
-    if (!invItem) return;
-
-    // Avoid duplicate items
-    if (billItems.some((item) => item.code === invItem.id)) {
-      alert(`"${invItem.testName}" has already been added to the invoice.`);
-      return;
+  // Toggle selection of pending patient investigation order
+  const toggleInvestigationOrder = (invOrder) => {
+    const isAdded = billItems.some(
+      (item) => item.consultationInvestigationId === invOrder.id || item.code === invOrder.id
+    );
+    if (isAdded) {
+      setBillItems((prev) =>
+        prev.filter((item) => item.consultationInvestigationId !== invOrder.id && item.code !== invOrder.id)
+      );
+    } else {
+      setBillItems((prev) => [
+        ...prev,
+        {
+          code: invOrder.id,
+          orderId: invOrder.id,
+          consultationInvestigationId: invOrder.id,
+          investigationId: invOrder.investigationId || undefined,
+          description: invOrder.testName,
+          type: 'Investigation',
+          amount: Number(invOrder.price),
+          quantity: 1,
+          category: invOrder.category,
+          investigationCode: invOrder.investigationCode
+        }
+      ]);
     }
-
-    setBillItems([
-      ...billItems,
-      {
-        code: invItem.id,
-        investigationId: invItem.dbId || invItem.id,
-        description: invItem.testName,
-        type: 'Investigation',
-        amount: Number(invItem.price)
-      }
-    ]);
-    setSelectedInvId('');
   };
 
   const removeItemFromBill = (idx) => {
@@ -129,23 +177,28 @@ const Billing = () => {
       alert('Please select a patient.');
       return;
     }
-    if (!doctorId) {
+    if (!doctorId && billType !== 'Lab Investigations') {
       alert('Please select a consulting doctor.');
       return;
     }
     if (billItems.length === 0) {
-      alert('Please search and add at least one billable appointment service or investigation.');
+      alert('Please add at least one billable consultation service or eligible investigation order.');
       return;
     }
 
     const { subTotal, tax, total } = calculateTotals();
 
+    const normalizedBillType =
+      billType === 'Lab Investigations' || billType === 'Investigations'
+        ? 'Lab'
+        : 'OPD';
+
     const newBill = await addBill({
       patientId,
       patientName: activePatientObj?.name || 'Walk-In Patient',
-      billType: billType === 'Appointments' ? 'OPD' : (billType === 'Investigations' ? 'Lab' : 'OPD'),
-      doctorId,
-      doctorName: activeDoctorObj?.name || 'Assigned Consultant',
+      billType: normalizedBillType,
+      doctorId: doctorId || undefined,
+      doctorName: activeDoctorObj?.name || (doctorId ? 'Assigned Consultant' : 'Diagnostic Lab'),
       paymentMode,
       paymentStatus,
       items: billItems,
@@ -425,7 +478,7 @@ const Billing = () => {
               <Autocomplete
                 options={patients}
                 value={patientId}
-                onChange={setPatientId}
+                onChange={handlePatientChange}
                 placeholder="Search patient by name or ID..."
                 displayKey="name"
                 idKey="id"
@@ -435,7 +488,7 @@ const Billing = () => {
             {/* Searchable Autocomplete Doctor Selector */}
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Treating Consultant <span className="text-red-500">*</span>
+                Treating Consultant {billType !== 'Lab Investigations' && <span className="text-red-500">*</span>}
               </label>
               <Autocomplete
                 options={doctors.filter((d) => d.status === 'Active')}
@@ -450,25 +503,25 @@ const Billing = () => {
             {/* Billing Scope Selector */}
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Billing Scope
+                Billing Category
               </label>
               <select
                 value={billType}
-                onChange={(e) => setBillType(e.target.value)}
+                onChange={(e) => handleBillTypeChange(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3 text-sm text-slate-700 focus:outline-none cursor-pointer font-semibold"
               >
-                <option value="Appointments">Appointments / Services</option>
-                <option value="Investigations">Investigations (Lab Tests)</option>
-                <option value="Combined">Combined (Services & Labs)</option>
+                <option value="Consultation">Consultation</option>
+                <option value="Lab Investigations">Lab Investigations</option>
+                <option value="Both">Both (Consultation & Lab Investigations)</option>
               </select>
             </div>
           </div>
 
           {/* Appointment Services Search & Select Section */}
-          {(billType === 'Appointments' || billType === 'Combined') && (
+          {(billType === 'Consultation' || billType === 'Both' || billType === 'Appointments' || billType === 'Combined') && (
             <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
               <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">
-                Add Appointment / Hospital Service
+                Add Consultation / Hospital Service
               </label>
               <div className="grid gap-3 sm:grid-cols-4 items-end">
                 <div className="sm:col-span-3">
@@ -494,33 +547,117 @@ const Billing = () => {
             </div>
           )}
 
-          {/* Investigation Tests Search & Select Section */}
-          {(billType === 'Investigations' || billType === 'Combined') && (
-            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
-              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">
-                Add Diagnostic Investigation (Lab Test)
-              </label>
-              <div className="grid gap-3 sm:grid-cols-4 items-end">
-                <div className="sm:col-span-3">
-                  <Autocomplete
-                    options={investigations}
-                    value={selectedInvId}
-                    onChange={setSelectedInvId}
-                    placeholder="Search diagnostic tests (e.g. X-Ray, MRI, Blood Panel)..."
-                    displayKey="testName"
-                    idKey="id"
-                  />
+          {/* Dynamic Eligible Investigation Orders Section */}
+          {(billType === 'Lab Investigations' || billType === 'Both' || billType === 'Investigations' || billType === 'Combined') && (
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Eligible Diagnostic Investigation Orders
+                  </label>
+                  <p className="text-[11px] text-slate-500">
+                    Pending tests ordered for {activePatientObj?.name || 'the selected patient'}
+                  </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={addInvestigationItem}
-                  disabled={!selectedInvId}
-                  className="w-full rounded-xl bg-hospital-500 py-2.5 text-xs font-bold text-white hover:bg-hospital-600 flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-sm transition-colors"
-                >
-                  <PlusCircle className="h-4 w-4" />
-                  <span>Add Test</span>
-                </button>
+                {patientId && (
+                  <button
+                    type="button"
+                    onClick={() => handlePatientChange(patientId)}
+                    disabled={loadingPendingInv}
+                    className="text-xs text-hospital-600 hover:text-hospital-700 flex items-center gap-1 font-semibold cursor-pointer"
+                    title="Refresh eligible orders"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingPendingInv ? 'animate-spin' : ''}`} />
+                    <span>Refresh</span>
+                  </button>
+                )}
               </div>
+
+              {!patientId ? (
+                <div className="p-3.5 bg-white rounded-xl border border-dashed border-slate-300 text-center text-xs text-slate-400 font-medium">
+                  Please select a patient above to view their eligible investigation orders.
+                </div>
+              ) : loadingPendingInv ? (
+                <div className="p-3.5 bg-white rounded-xl border border-slate-200 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-hospital-500 border-t-transparent" />
+                  <span>Retrieving eligible investigation orders...</span>
+                </div>
+              ) : pendingInvestigations.length === 0 ? (
+                <div className="p-4 bg-white rounded-xl border border-dashed border-slate-300 text-center text-xs font-semibold text-slate-500">
+                  No pending investigations available for billing.
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                  {pendingInvestigations.map((invOrder) => {
+                    const isAdded = billItems.some(
+                      (item) => item.consultationInvestigationId === invOrder.id || item.code === invOrder.id
+                    );
+                    const formattedDate = invOrder.orderedAt
+                      ? new Date(invOrder.orderedAt).toLocaleString('en-US', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })
+                      : '—';
+
+                    return (
+                      <div
+                        key={invOrder.id}
+                        className={`p-2.5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+                          isAdded
+                            ? 'bg-blue-50/80 border-blue-200'
+                            : 'bg-white border-slate-200 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-xs text-slate-900">{invOrder.testName}</span>
+                            <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                              {invOrder.investigationCode}
+                            </span>
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100">
+                              {invOrder.category || 'Diagnostic'}
+                            </span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-semibold">
+                              {invOrder.clinicalStatus || 'Ordered'}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 flex items-center gap-3 flex-wrap">
+                            <span>Ordered: <strong className="text-slate-700">{formattedDate}</strong></span>
+                            <span>By: <strong className="text-slate-700">{invOrder.orderedBy || 'Staff'}</strong></span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 self-end sm:self-center">
+                          <span className="font-extrabold text-sm text-slate-900">
+                            ₹{invOrder.price}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => toggleInvestigationOrder(invOrder)}
+                            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+                              isAdded
+                                ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
+                                : 'bg-hospital-500 text-white hover:bg-hospital-600 shadow-sm'
+                            }`}
+                          >
+                            {isAdded ? (
+                              <span>Remove</span>
+                            ) : (
+                              <>
+                                <PlusCircle className="w-3.5 h-3.5" />
+                                <span>Add to Bill</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 

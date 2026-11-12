@@ -292,28 +292,56 @@ export async function addPrescription(data, client) {
 export async function orderInvestigation(data, client) {
   const q = client ? client.query.bind(client) : query;
   const { rows } = await q(
-    `INSERT INTO consultation_investigations (consultation_id, investigation_id, test_name, status)
-     VALUES ($1, $2, $3, 'Ordered')
+    `INSERT INTO consultation_investigations (consultation_id, patient_id, investigation_id, test_name, status, billing_status, ordered_by_user_id, ordered_by_name)
+     VALUES ($1, $2, $3, $4, 'Ordered', 'Unbilled', $5, $6)
      RETURNING id`,
     [
-      data.consultationId,
+      data.consultationId || null,
+      data.patientId || null,
       data.investigationId || null,
-      data.testName
+      data.testName,
+      data.orderedByUserId || null,
+      data.orderedByName || null
     ]
   );
 
   const { rows: invRows } = await q(
-    `SELECT ci.id, ci.consultation_id, ci.investigation_id, ci.test_name, ci.status,
-            ci.result, ci.ordered_at, ci.completed_at,
-            inv.investigation_code, inv.category, inv.price,
-            d.name AS doctor_name
+    `SELECT ci.id, ci.consultation_id, COALESCE(ci.patient_id, c.patient_id) AS patient_id,
+            ci.investigation_id, ci.test_name, ci.status, ci.billing_status, ci.bill_id,
+            ci.ordered_by_name, ci.result, ci.ordered_at, ci.completed_at,
+            COALESCE(inv.investigation_code, inv_by_name.investigation_code, 'INV') AS investigation_code,
+            COALESCE(inv.category, inv_by_name.category, 'Diagnostic') AS category,
+            COALESCE(inv.price, inv_by_name.price, 0) AS price,
+            COALESCE(ci.ordered_by_name, d.name, 'Hospital Staff') AS doctor_name
      FROM consultation_investigations ci
-     JOIN consultations c ON c.id = ci.consultation_id
-     JOIN doctors d ON d.id = c.doctor_id
+     LEFT JOIN consultations c ON c.id = ci.consultation_id
+     LEFT JOIN doctors d ON d.id = c.doctor_id
      LEFT JOIN investigations inv ON inv.id = ci.investigation_id
+     LEFT JOIN investigations inv_by_name ON LOWER(inv_by_name.test_name) = LOWER(ci.test_name)
      WHERE ci.id = $1`,
     [rows[0].id]
   );
 
   return invRows[0];
+}
+
+export async function findInvestigationOrderById(id, client) {
+  const q = client ? client.query.bind(client) : query;
+  const { rows } = await q(
+    `SELECT ci.* FROM consultation_investigations ci WHERE ci.id = $1`,
+    [id]
+  );
+  return rows[0] ?? null;
+}
+
+export async function cancelInvestigationOrder(id, client) {
+  const q = client ? client.query.bind(client) : query;
+  const { rows } = await q(
+    `UPDATE consultation_investigations
+     SET status = 'Cancelled'
+     WHERE id = $1
+     RETURNING id`,
+    [id]
+  );
+  return rows[0] ?? null;
 }

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate, requireRole } from '../../middlewares/auth.js';
 import { validate } from '../../middlewares/validate.js';
+import { idParamSchema } from '../../utils/commonSchemas.js';
 import {
   updateConsultationSchema,
   completeConsultationSchema,
@@ -59,4 +60,11 @@ consultationsRouter.post(
   requireRole('Admin', 'Receptionist', 'Doctor'),
   validate({ body: orderInvestigationSchema }),
   controller.orderInvestigation
+);
+
+consultationsRouter.delete(
+  '/investigations/:id',
+  requireRole('Admin', 'Receptionist', 'Doctor'),
+  validate({ params: idParamSchema }),
+  controller.cancelInvestigation
 );

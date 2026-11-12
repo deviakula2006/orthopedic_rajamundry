@@ -2326,22 +2326,23 @@ const toggleDoctorStatus = async (code) => {
       );
     }
 
-    if (!activeApt) {
-      showToast('No active appointment slot for this patient.', 'error');
-      return false;
-    }
-
     try {
-      const consRes = await apiClient.get(`/consultations/appointment/${activeApt.dbId}`);
-      const consId = consRes.data.data.id;
-
       const inv = investigations.find(i => i.id === test.id || i.testName === test.testName || i.dbId === test.id);
+      const testName = test.testName || test.name || inv?.testName;
 
-      await apiClient.post('/consultations/investigations', {
-        consultationId: consId,
+      let payload = {
         investigationId: inv ? inv.dbId : undefined,
-        testName: test.testName
-      });
+        testName
+      };
+
+      if (activeApt) {
+        const consRes = await apiClient.get(`/consultations/appointment/${activeApt.dbId}`);
+        payload.consultationId = consRes.data?.data?.id;
+      } else {
+        payload.patientId = targetPatient?.dbId || patientId;
+      }
+
+      await apiClient.post('/consultations/investigations', payload);
 
       showToast('Investigation ordered successfully!');
       await Promise.all([fetchAll(), refreshActivities()]);
@@ -2349,6 +2350,21 @@ const toggleDoctorStatus = async (code) => {
     } catch (error) {
       reportError(error, 'Failed to order investigation');
       return false;
+    }
+  };
+
+  const getPendingInvestigations = async (patientId) => {
+    if (!patientId) return [];
+    const targetPatient = patients.find(p => p.id === patientId || p.dbId === patientId || p.code === patientId);
+    const pid = targetPatient?.dbId || patientId;
+    try {
+      const res = await apiClient.get('/bills/pending-investigations', {
+        params: { patientId: pid }
+      });
+      return res.data?.data || [];
+    } catch (err) {
+      console.error('Failed to fetch pending investigations:', err);
+      return [];
     }
   };
 
@@ -2489,9 +2505,9 @@ const toggleDoctorStatus = async (code) => {
           patientId: patient.dbId,
           doctorId: doctor?.dbId,
           billType:
-            bill.billType === 'Consultation'
+            bill.billType === 'Consultation' || bill.billType === 'Appointments'
               ? 'OPD'
-              : bill.billType === 'Investigations'
+              : bill.billType === 'Investigations' || bill.billType === 'Lab Investigations'
               ? 'Lab'
               : (bill.billType || 'OPD'),
           paymentMode: bill.paymentMode,
@@ -2515,6 +2531,9 @@ const toggleDoctorStatus = async (code) => {
 
               investigationId:
                 item.investigationId || undefined,
+
+              consultationInvestigationId:
+                item.consultationInvestigationId || item.orderId || undefined,
 
               appointmentTypeId:
                 item.appointmentTypeId || undefined
@@ -2711,6 +2730,7 @@ const toggleDoctorStatus = async (code) => {
 
     addVitals,
     orderInvestigation,
+    getPendingInvestigations,
     addPrescription,
     addConsultationSummary,
     addConsultationNotes,

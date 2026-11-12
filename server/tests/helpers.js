@@ -10,11 +10,12 @@ export async function loginAsAdmin() {
 
 export async function loginAsReceptionist() {
   const adminToken = await loginAsAdmin();
+  const recUsername = 'receptionist_test';
   const recEmail = 'receptionist.test@example.com';
   const password = 'Reception@123';
 
   // Try login
-  const loginRes = await request(app).post('/api/auth/login').send({ username: recEmail, password });
+  const loginRes = await request(app).post('/api/auth/login').send({ username: recUsername, password });
   if (loginRes.body?.data?.token) {
     return loginRes.body.data.token;
   }
@@ -25,12 +26,13 @@ export async function loginAsReceptionist() {
     .set('Authorization', `Bearer ${adminToken}`)
     .send({
       name: 'Test Receptionist',
+      username: recUsername,
       phone: '9000000099',
       email: recEmail,
       password,
       shift: 'Morning'
     });
 
-  const res = await request(app).post('/api/auth/login').send({ username: recEmail, password });
+  const res = await request(app).post('/api/auth/login').send({ username: recUsername, password });
   return res.body.data.token;
 }

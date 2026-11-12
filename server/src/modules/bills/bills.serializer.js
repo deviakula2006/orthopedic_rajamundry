@@ -2,6 +2,7 @@ export function serializeBillItem(row) {
   return {
     id: row.id,
     investigationId: row.investigation_id,
+    consultationInvestigationId: row.consultation_investigation_id || null,
     description: row.description,
     type: row.item_type,
     quantity: row.quantity,

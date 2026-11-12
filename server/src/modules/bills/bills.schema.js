@@ -11,6 +11,7 @@ const billItemSchema = z.object({
   quantity: z.coerce.number().int().positive().optional(),
   amount: z.coerce.number().nonnegative(),
   investigationId: z.string().uuid().optional(),
+  consultationInvestigationId: z.string().uuid().optional(),
   appointmentTypeId: z.string().uuid().optional()
 });
 
@@ -37,4 +38,8 @@ export const listBillsQuerySchema = z.object({
   patientId: z.string().uuid().optional(),
   paymentStatus: z.enum(PAYMENT_STATUS).optional(),
   billType: z.enum(BILL_TYPE).optional()
+});
+
+export const pendingInvestigationsQuerySchema = z.object({
+  patientId: z.string().uuid('Valid patient ID is required')
 });
