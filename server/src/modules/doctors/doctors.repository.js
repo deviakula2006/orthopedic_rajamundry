@@ -2,34 +2,37 @@ import { query } from '../../config/db.js';
 import { buildSetClause } from '../../utils/sqlUpdate.js';
 
 const BASE_SELECT = `
-  id, doctor_code, name, specialization, phone, email, status,
-  availability_note, experience_years, user_id, created_at, updated_at
+  d.id, d.doctor_code, d.name, d.specialization, d.phone, d.email, d.status,
+  d.availability_note, d.experience_years, d.user_id, d.created_at, d.updated_at,
+  u.username
 `;
 
 export async function list({ limit, offset, search, status }) {
-  const conditions = ['deleted_at IS NULL'];
+  const conditions = ['d.deleted_at IS NULL'];
   const params = [];
 
   if (search) {
     params.push(`%${search}%`);
-    conditions.push(`(name ILIKE $${params.length} OR specialization ILIKE $${params.length} OR doctor_code ILIKE $${params.length})`);
+    conditions.push(`(d.name ILIKE $${params.length} OR d.specialization ILIKE $${params.length} OR d.doctor_code ILIKE $${params.length})`);
   }
   if (status) {
     params.push(status);
-    conditions.push(`status = $${params.length}`);
+    conditions.push(`d.status = $${params.length}`);
   }
 
   const whereSql = conditions.join(' AND ');
 
   params.push(limit, offset);
   const { rows } = await query(
-    `SELECT ${BASE_SELECT} FROM doctors WHERE ${whereSql}
-     ORDER BY name ASC LIMIT $${params.length - 1} OFFSET $${params.length}`,
+    `SELECT ${BASE_SELECT} FROM doctors d
+     LEFT JOIN users u ON u.id = d.user_id
+     WHERE ${whereSql}
+     ORDER BY d.name ASC LIMIT $${params.length - 1} OFFSET $${params.length}`,
     params
   );
 
   const { rows: countRows } = await query(
-    `SELECT COUNT(*)::int AS total FROM doctors WHERE ${whereSql}`,
+    `SELECT COUNT(*)::int AS total FROM doctors d WHERE ${whereSql}`,
     params.slice(0, params.length - 2)
   );
 
@@ -38,7 +41,12 @@ export async function list({ limit, offset, search, status }) {
 
 export async function findById(id, client) {
   const q = client ? client.query.bind(client) : query;
-  const { rows } = await q(`SELECT ${BASE_SELECT} FROM doctors WHERE id = $1 AND deleted_at IS NULL`, [id]);
+  const { rows } = await q(
+    `SELECT ${BASE_SELECT} FROM doctors d
+     LEFT JOIN users u ON u.id = d.user_id
+     WHERE d.id = $1 AND d.deleted_at IS NULL`,
+    [id]
+  );
   return rows[0] ?? null;
 }
 
@@ -47,10 +55,12 @@ export async function create({ name, specialization, phone, email, status, avail
   const { rows } = await q(
     `INSERT INTO doctors (name, specialization, phone, email, status, availability_note, experience_years, user_id)
      VALUES ($1, $2, $3, $4, COALESCE($5, 'Active')::staff_status, $6, $7, $8)
-     RETURNING ${BASE_SELECT}`,
+     RETURNING id, doctor_code, name, specialization, phone, email, status, availability_note, experience_years, user_id, created_at, updated_at`,
     [name, specialization, phone, email ?? null, status ?? null, availabilityNote ?? null, experienceYears ?? null, userId ?? null]
   );
-  return rows[0];
+  if (!rows[0]) return null;
+  // Fetch with username join
+  return findById(rows[0].id, client);
 }
 
 export async function update(id, fields, client) {
@@ -81,10 +91,10 @@ export async function setStatus(id, status, client) {
   const { rows } = await q(
     `UPDATE doctors SET status = $2, updated_at = now()
      WHERE id = $1 AND deleted_at IS NULL
-     RETURNING ${BASE_SELECT}`,
+     RETURNING id`,
     [id, status]
   );
-  return rows[0] ?? null;
+  return rows[0] ? findById(id, client) : null;
 }
 
 export async function softDelete(id, client) {
@@ -98,13 +108,23 @@ export async function softDelete(id, client) {
 
 export async function findByUserId(userId, client) {
   const q = client ? client.query.bind(client) : query;
-  const { rows } = await q(`SELECT ${BASE_SELECT} FROM doctors WHERE user_id = $1 AND deleted_at IS NULL`, [userId]);
+  const { rows } = await q(
+    `SELECT ${BASE_SELECT} FROM doctors d
+     LEFT JOIN users u ON u.id = d.user_id
+     WHERE d.user_id = $1 AND d.deleted_at IS NULL`,
+    [userId]
+  );
   return rows[0] ?? null;
 }
 
 export async function findByCode(doctorCode, client) {
   const q = client ? client.query.bind(client) : query;
-  const { rows } = await q(`SELECT ${BASE_SELECT} FROM doctors WHERE doctor_code = $1 AND deleted_at IS NULL`, [doctorCode]);
+  const { rows } = await q(
+    `SELECT ${BASE_SELECT} FROM doctors d
+     LEFT JOIN users u ON u.id = d.user_id
+     WHERE d.doctor_code = $1 AND d.deleted_at IS NULL`,
+    [doctorCode]
+  );
   return rows[0] ?? null;
 }
 

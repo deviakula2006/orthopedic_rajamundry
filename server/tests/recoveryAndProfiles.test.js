@@ -9,7 +9,9 @@ describe('Password Recovery, Staff Profiles & Settings Management', () => {
   let receptionistToken;
 
   const testDoctorEmail = `testdoc.${Date.now()}@example.com`;
+  const testDoctorUsername = `dr_prof_${Date.now()}`;
   const testRecEmail = `testrec.${Date.now()}@example.com`;
+  const testRecUsername = `rec_prof_${Date.now()}`;
   const initialDoctorPass = 'DocInitial@123';
   const initialRecPass = 'RecInitial@123';
 
@@ -27,6 +29,7 @@ describe('Password Recovery, Staff Profiles & Settings Management', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
         name: 'Dr. Profile Test',
+        username: testDoctorUsername,
         specialization: 'Orthopedic Spine Surgery',
         phone: '9888877771',
         email: testDoctorEmail,
@@ -40,7 +43,7 @@ describe('Password Recovery, Staff Profiles & Settings Management', () => {
     // Login as Doctor
     const docLogin = await request(app)
       .post('/api/auth/login')
-      .send({ username: testDoctorEmail, password: initialDoctorPass });
+      .send({ username: testDoctorUsername, password: initialDoctorPass });
     expect(docLogin.status).toBe(200);
     doctorToken = docLogin.body.data.token;
     doctorUsername = docLogin.body.data.user.username;
@@ -51,6 +54,7 @@ describe('Password Recovery, Staff Profiles & Settings Management', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
         name: 'Receptionist Profile Test',
+        username: testRecUsername,
         phone: '9888877772',
         email: testRecEmail,
         password: initialRecPass,
@@ -62,7 +66,7 @@ describe('Password Recovery, Staff Profiles & Settings Management', () => {
     // Login as Receptionist
     const recLogin = await request(app)
       .post('/api/auth/login')
-      .send({ username: testRecEmail, password: initialRecPass });
+      .send({ username: testRecUsername, password: initialRecPass });
     expect(recLogin.status).toBe(200);
     receptionistToken = recLogin.body.data.token;
     recUsername = recLogin.body.data.user.username;
@@ -193,13 +197,13 @@ describe('Password Recovery, Staff Profiles & Settings Management', () => {
       // Old password must fail
       const oldLogin = await request(app)
         .post('/api/auth/login')
-        .send({ username: testDoctorEmail, password: initialDoctorPass });
+        .send({ username: testDoctorUsername, password: initialDoctorPass });
       expect(oldLogin.status).toBe(401);
 
       // New password must succeed
       const newLogin = await request(app)
         .post('/api/auth/login')
-        .send({ username: testDoctorEmail, password: newDoctorPass });
+        .send({ username: testDoctorUsername, password: newDoctorPass });
       expect(newLogin.status).toBe(200);
       expect(newLogin.body.data.token).toBeDefined();
 
@@ -232,13 +236,13 @@ describe('Password Recovery, Staff Profiles & Settings Management', () => {
       // Previous password fails
       const prevLogin = await request(app)
         .post('/api/auth/login')
-        .send({ username: testDoctorEmail, password: 'BrandNewPassword@123' });
+        .send({ username: testDoctorUsername, password: 'BrandNewPassword@123' });
       expect(prevLogin.status).toBe(401);
 
       // Admin set password succeeds
       const adminSetLogin = await request(app)
         .post('/api/auth/login')
-        .send({ username: testDoctorEmail, password: adminSetPassword });
+        .send({ username: testDoctorUsername, password: adminSetPassword });
       expect(adminSetLogin.status).toBe(200);
       doctorToken = adminSetLogin.body.data.token;
     });
@@ -261,7 +265,7 @@ describe('Password Recovery, Staff Profiles & Settings Management', () => {
       // Current password still functions
       const loginCheck = await request(app)
         .post('/api/auth/login')
-        .send({ username: testDoctorEmail, password: 'AdminSetDoctorPass@2026' });
+        .send({ username: testDoctorUsername, password: 'AdminSetDoctorPass@2026' });
       expect(loginCheck.status).toBe(200);
     });
   });

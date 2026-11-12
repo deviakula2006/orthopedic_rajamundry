@@ -1,13 +1,14 @@
 import { z } from 'zod';
 
 export const loginSchema = z.object({
-  username: z.string().min(1, 'Username or email is required'),
+  username: z.string().min(1, 'Username is required'),
   password: z.string().min(1, 'Password is required')
 });
 
 export const updateProfileSchema = z
   .object({
     name: z.string().min(1).max(150).optional(),
+    username: z.string().trim().min(1).max(50).optional(),
     email: z.string().email().optional(),
     phone: z.string().min(7).max(15).optional(),
     specialization: z.string().max(100).optional(),
@@ -38,17 +39,17 @@ export const changePasswordSchema = z
   );
 
 export const forgotPasswordRequestSchema = z.object({
-  username: z.string().trim().min(1, 'Username or email identifier is required')
+  username: z.string().trim().min(1, 'Username is required')
 });
 
 export const forgotPasswordVerifySchema = z.object({
-  username: z.string().trim().min(1, 'Username or email identifier is required'),
+  username: z.string().trim().min(1, 'Username is required'),
   otp: z.string().trim().min(4, 'Verification code must be at least 4 digits').max(10)
 });
 
 export const forgotPasswordResetSchema = z
   .object({
-    username: z.string().trim().min(1, 'Username or email identifier is required'),
+    username: z.string().trim().min(1, 'Username is required'),
     resetToken: z.string().trim().min(1, 'Reset session token is required'),
     newPassword: z.string().min(8, 'New password must be at least 8 characters'),
     confirmPassword: z.string().min(8, 'Confirm password must be at least 8 characters')

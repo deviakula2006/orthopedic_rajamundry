@@ -12,7 +12,7 @@ export const apiRateLimiter = rateLimit({
 // Tighter limit on login to slow down credential-stuffing / brute force attempts.
 export const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: env.isTest ? 10000 : 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, error: { code: 'TOO_MANY_REQUESTS', message: 'Too many login attempts, please try again later' } }

@@ -55,13 +55,13 @@ export async function sendOtpRecoveryEmail({
   otp,
   expiryMinutes = 5
 }) {
+  if (env.isTest) {
+    logger.info({ to, username, role }, '[TEST MODE] Simulating OTP email dispatch');
+    return { success: true, messageId: 'test-mock-message-id' };
+  }
+
   const missing = getMissingSmtpConfig();
   if (missing.length > 0) {
-    if (env.isTest) {
-      logger.info({ to, username, role }, '[TEST MODE] Simulating OTP email dispatch');
-      return { success: true, messageId: 'test-mock-message-id' };
-    }
-
     logger.warn({ missing }, 'SMTP configuration is incomplete');
     throw ApiError.badRequest(
       `SMTP email delivery is not configured on this server. Missing environment variables: ${missing.join(', ')}.`

@@ -694,6 +694,7 @@ const adaptDoctor = (row) => ({
   dbId: row.id,
   code: row.code,
   name: row.name,
+  username: row.username || '',
   specialization: row.specialization,
   phone: row.phone,
   email: row.email,
@@ -711,6 +712,7 @@ const adaptReceptionist = (row) => ({
   dbId: row.id,
   code: row.code,
   name: row.name,
+  username: row.username || '',
   phone: row.phone,
   email: row.email,
   shift: row.shift,
@@ -1374,6 +1376,7 @@ const addDoctor = async (doctor) => {
   try {
     const response = await apiClient.post('/doctors', {
       name: doctor.name.trim(),
+      username: doctor.username?.trim(),
 
       specialization: doctor.specialization.trim(),
 
@@ -1465,6 +1468,9 @@ const editDoctor = async (
       {
         name:
           updatedDoctor.name.trim(),
+
+        username:
+          updatedDoctor.username?.trim() || undefined,
 
         specialization:
           updatedDoctor.specialization.trim(),
@@ -1681,6 +1687,7 @@ const toggleDoctorStatus = async (code) => {
         '/receptionists',
         {
           name: receptionist.name,
+          username: receptionist.username?.trim(),
           phone: receptionist.phone,
           email: receptionist.email,
           shift: receptionist.shift,
@@ -1734,6 +1741,7 @@ const toggleDoctorStatus = async (code) => {
         `/receptionists/${target.dbId}`,
         {
           name: updatedReceptionist.name,
+          username: updatedReceptionist.username?.trim() || undefined,
           phone: updatedReceptionist.phone,
           email: updatedReceptionist.email,
           shift: updatedReceptionist.shift,

@@ -26,6 +26,7 @@ const ProfileSettings = () => {
 
   // Profile fields
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [specialization, setSpecialization] = useState('');
@@ -53,6 +54,7 @@ const ProfileSettings = () => {
         const data = res.data?.data;
         if (data && isMounted) {
           setName(data.name || '');
+          setUsername(data.username || '');
           setEmail(data.email || '');
           setPhone(data.phone || '');
           setSpecialization(data.specialization || '');
@@ -83,6 +85,7 @@ const ProfileSettings = () => {
     try {
       const payload = {
         name,
+        username: username.trim() || undefined,
         email,
         phone: phone || undefined
       };
@@ -99,6 +102,7 @@ const ProfileSettings = () => {
 
       if (updatedUser) {
         setName(updatedUser.name || '');
+        setUsername(updatedUser.username || '');
         setEmail(updatedUser.email || '');
         if (updatedUser.phone !== undefined) setPhone(updatedUser.phone || '');
         if (updatedUser.specialization !== undefined) setSpecialization(updatedUser.specialization || '');
@@ -277,6 +281,23 @@ const ProfileSettings = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                    Login Username <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="e.g. username"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-800 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">Primary credential used for login</p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                     Email Address <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -286,10 +307,8 @@ const ProfileSettings = () => {
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-800 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
                   />
+                  <p className="text-[10px] text-slate-400 mt-1">Used for correspondence and recovery</p>
                 </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                     Phone Number
@@ -302,6 +321,9 @@ const ProfileSettings = () => {
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-800 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
                   />
                 </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                     Account Role

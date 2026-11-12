@@ -3,6 +3,7 @@ export function serializeReceptionist(row) {
     id: row.id,
     code: row.receptionist_code,
     name: row.name,
+    username: row.username ?? null,
     phone: row.phone,
     email: row.email,
     status: row.status,

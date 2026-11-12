@@ -27,6 +27,7 @@ const Doctors = () => {
   // Form states
   const [formData, setFormData] = useState({
     name: '',
+    username: '',
     specialization: '',
     phone: '',
     email: '',
@@ -40,6 +41,7 @@ const Doctors = () => {
   const handleOpenAdd = () => {
     setFormData({
       name: '',
+      username: '',
       specialization: '',
       phone: '',
       email: '',
@@ -57,6 +59,7 @@ const Doctors = () => {
     setSelectedDoctor(doc);
     setFormData({
       name: doc.name || '',
+      username: doc.username || '',
       specialization: doc.specialization || '',
       phone: doc.phone || '',
       email: doc.email || '',
@@ -188,7 +191,9 @@ const Doctors = () => {
           </div>
           <div>
             <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.8125rem' }}>{row.name}</div>
-            <div style={{ fontWeight: 500, color: '#374151', fontSize: '0.7rem', marginTop: 1 }}>{row.email}</div>
+            <div style={{ fontWeight: 500, color: '#374151', fontSize: '0.7rem', marginTop: 1 }}>
+              {row.email} {row.username ? `• @${row.username}` : ''}
+            </div>
           </div>
         </div>
       )
@@ -317,18 +322,19 @@ const Doctors = () => {
             </div>
           </div>
 
-          {/* Phone & Email */}
+          {/* Username & Email */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Phone Number</label>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Username <span className="text-red-500">*</span></label>
               <input
-                type="tel"
+                type="text"
                 required
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                placeholder="e.g. 9810543210"
+                value={formData.username}
+                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                placeholder="e.g. krishna_doc"
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
               />
+              <p className="text-[10px] text-slate-400 mt-1">Used for login. Must be unique.</p>
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Email Address</label>
@@ -341,6 +347,19 @@ const Doctors = () => {
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
               />
             </div>
+          </div>
+
+          {/* Phone Number */}
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Phone Number</label>
+            <input
+              type="tel"
+              required
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              placeholder="e.g. 9810543210"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
+            />
           </div>
 
           {/* Experience Years */}
@@ -446,18 +465,21 @@ const Doctors = () => {
             </div>
           </div>
 
+          {/* Username & Email */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                Phone Number
+                Username <span className="text-red-500">*</span>
               </label>
               <input
-                type="tel"
+                type="text"
                 required
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                value={formData.username}
+                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                placeholder="e.g. krishna_doc"
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
               />
+              <p className="text-[10px] text-slate-400 mt-1">Used for login. Must be unique.</p>
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -471,6 +493,20 @@ const Doctors = () => {
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
               />
             </div>
+          </div>
+
+          {/* Phone Number */}
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+              Phone Number
+            </label>
+            <input
+              type="tel"
+              required
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
+            />
           </div>
 
           <div>
@@ -587,6 +623,10 @@ const Doctors = () => {
               <div>
                 <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Specialization</span>
                 <span className="text-sm font-semibold text-slate-700">{viewDoctor.specialization}</span>
+              </div>
+              <div>
+                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Username</span>
+                <span className="text-sm font-semibold text-slate-700 font-mono">@{viewDoctor.username || '—'}</span>
               </div>
               <div>
                 <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Email Address</span>

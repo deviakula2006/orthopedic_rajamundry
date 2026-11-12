@@ -2,29 +2,32 @@ import { query } from '../../config/db.js';
 import { buildSetClause } from '../../utils/sqlUpdate.js';
 
 const BASE_SELECT = `
-  id, receptionist_code, name, phone, email, status, shift, user_id, created_at, updated_at
+  r.id, r.receptionist_code, r.name, r.phone, r.email, r.status, r.shift, r.user_id, r.created_at, r.updated_at,
+  u.username
 `;
 
 export async function list({ limit, offset, search }) {
-  const conditions = ['deleted_at IS NULL'];
+  const conditions = ['r.deleted_at IS NULL'];
   const params = [];
 
   if (search) {
     params.push(`%${search}%`);
-    conditions.push(`(name ILIKE $${params.length} OR receptionist_code ILIKE $${params.length})`);
+    conditions.push(`(r.name ILIKE $${params.length} OR r.receptionist_code ILIKE $${params.length})`);
   }
 
   const whereSql = conditions.join(' AND ');
 
   params.push(limit, offset);
   const { rows } = await query(
-    `SELECT ${BASE_SELECT} FROM receptionists WHERE ${whereSql}
-     ORDER BY name ASC LIMIT $${params.length - 1} OFFSET $${params.length}`,
+    `SELECT ${BASE_SELECT} FROM receptionists r
+     LEFT JOIN users u ON u.id = r.user_id
+     WHERE ${whereSql}
+     ORDER BY r.name ASC LIMIT $${params.length - 1} OFFSET $${params.length}`,
     params
   );
 
   const { rows: countRows } = await query(
-    `SELECT COUNT(*)::int AS total FROM receptionists WHERE ${whereSql}`,
+    `SELECT COUNT(*)::int AS total FROM receptionists r WHERE ${whereSql}`,
     params.slice(0, params.length - 2)
   );
 
@@ -33,7 +36,12 @@ export async function list({ limit, offset, search }) {
 
 export async function findById(id, client) {
   const q = client ? client.query.bind(client) : query;
-  const { rows } = await q(`SELECT ${BASE_SELECT} FROM receptionists WHERE id = $1 AND deleted_at IS NULL`, [id]);
+  const { rows } = await q(
+    `SELECT ${BASE_SELECT} FROM receptionists r
+     LEFT JOIN users u ON u.id = r.user_id
+     WHERE r.id = $1 AND r.deleted_at IS NULL`,
+    [id]
+  );
   return rows[0] ?? null;
 }
 
@@ -42,10 +50,11 @@ export async function create({ name, phone, email, status, shift, userId }, clie
   const { rows } = await q(
     `INSERT INTO receptionists (name, phone, email, status, shift, user_id)
      VALUES ($1, $2, $3, COALESCE($4, 'Active')::staff_status, $5, $6)
-     RETURNING ${BASE_SELECT}`,
+     RETURNING id`,
     [name, phone, email ?? null, status ?? null, shift ?? null, userId ?? null]
   );
-  return rows[0];
+  if (!rows[0]) return null;
+  return findById(rows[0].id, client);
 }
 
 export async function update(id, fields, client) {
@@ -81,7 +90,9 @@ export async function softDelete(id, client) {
 export async function findByUserId(userId, client) {
   const q = client ? client.query.bind(client) : query;
   const { rows } = await q(
-    `SELECT ${BASE_SELECT} FROM receptionists WHERE user_id = $1 AND deleted_at IS NULL`,
+    `SELECT ${BASE_SELECT} FROM receptionists r
+     LEFT JOIN users u ON u.id = r.user_id
+     WHERE r.user_id = $1 AND r.deleted_at IS NULL`,
     [userId]
   );
   return rows[0] ?? null;

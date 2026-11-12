@@ -20,32 +20,29 @@ export async function getDoctor(id) {
 }
 
 export async function createDoctor(data, actor) {
-  // 1. Check if email already exists
-  const existingUser = await usersRepository.findByUsernameOrEmail(data.email);
-  if (existingUser) {
+  const username = data.username?.trim();
+  if (!username) throw ApiError.badRequest('Username is required.');
+
+  // 1. Check username uniqueness (case-insensitive, non-deleted accounts only)
+  if (await usersRepository.isUsernameTaken(username)) {
+    throw ApiError.badRequest('Username is already taken.');
+  }
+
+  // 2. Check email uniqueness (case-insensitive, non-deleted accounts only)
+  if (await usersRepository.isEmailTaken(data.email)) {
     throw ApiError.badRequest('Email is already registered');
   }
 
-  // 2. Hash password
+  // 3. Hash password
   const passwordHash = await bcrypt.hash(data.password, env.BCRYPT_SALT_ROUNDS);
 
-  // 3. Run transaction
+  // 4. Run transaction
   const resultDoctor = await withTransaction(async (client) => {
-    // 3.1 Find Doctor role ID
+    // 4.1 Find Doctor role ID
     const roleId = await usersRepository.findRoleIdByName('Doctor', client);
     if (!roleId) throw ApiError.internal('Role "Doctor" not found in database');
 
-    // 3.2 Generate a unique, stable username
-    let baseUsername = data.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 40);
-    if (!baseUsername) baseUsername = 'doctor';
-    let username = baseUsername;
-    let counter = 1;
-    while (await usersRepository.findByUsernameOrEmail(username, client)) {
-      username = `${baseUsername}${counter}`;
-      counter++;
-    }
-
-    // 3.3 Create user account
+    // 4.2 Create user account with the explicitly provided username
     const userRow = await usersRepository.create({
       username,
       email: data.email,
@@ -54,7 +51,11 @@ export async function createDoctor(data, actor) {
       roleId
     }, client);
 
-    // 3.4 Create doctor profile
+    if (data.status && data.status !== 'Active') {
+      await usersRepository.updateActiveStatus(userRow.id, false, client);
+    }
+
+    // 4.3 Create doctor profile
     const doctorRow = await doctorsRepository.create({
       name: data.name,
       specialization: data.specialization,
@@ -69,7 +70,7 @@ export async function createDoctor(data, actor) {
     return doctorRow;
   });
 
-  // 4. Log activity
+  // 5. Log activity
   await logActivity({
     userId: actor?.id ?? null,
     actorName: actor?.name || 'Administrator',
@@ -94,7 +95,7 @@ export async function updateDoctor(id, data, actor) {
     // Attempt auto-recovery by email
     const emailToSearch = data.email || current.email;
     if (emailToSearch) {
-      linkedUser = await usersRepository.findByUsernameOrEmail(emailToSearch);
+      linkedUser = await usersRepository.findByUsername(emailToSearch);
       if (linkedUser) {
         linkedUserId = linkedUser.id;
         await doctorsRepository.update(id, { userId: linkedUserId });
@@ -102,10 +103,17 @@ export async function updateDoctor(id, data, actor) {
     }
   }
 
-  // If email is changing, check duplicate in users table
-  if (data.email && data.email !== current.email) {
-    const existingUser = await usersRepository.findByUsernameOrEmail(data.email);
-    if (existingUser && existingUser.id !== linkedUserId) {
+  // If username is changing, check uniqueness
+  if (data.username !== undefined && data.username.trim() !== '') {
+    const newUsername = data.username.trim();
+    if (await usersRepository.isUsernameTaken(newUsername, linkedUserId)) {
+      throw ApiError.badRequest('Username is already taken.');
+    }
+  }
+
+  // If email is changing, check uniqueness
+  if (data.email && data.email.toLowerCase() !== current.email?.toLowerCase()) {
+    if (await usersRepository.isEmailTaken(data.email, linkedUserId)) {
       throw ApiError.badRequest('Email is already registered');
     }
   }
@@ -113,19 +121,14 @@ export async function updateDoctor(id, data, actor) {
   const row = await withTransaction(async (client) => {
     if (!linkedUser) {
       // Create user account if absent
-      const roleId = await usersRepository.findRoleIdByName('Doctor', client);
-      let baseUsername = (data.email || current.email || 'doctor')
-        .split('@')[0]
-        .toLowerCase()
-        .replace(/[^a-z0-9_]/g, '')
-        .slice(0, 40);
-      if (!baseUsername) baseUsername = 'doctor';
-      let username = baseUsername;
-      let counter = 1;
-      while (await usersRepository.findByUsernameOrEmail(username, client)) {
-        username = `${baseUsername}${counter}`;
-        counter++;
+      const username = data.username?.trim();
+      if (!username) throw ApiError.badRequest('Username is required to create a login account for this doctor.');
+
+      if (await usersRepository.isUsernameTaken(username, null, client)) {
+        throw ApiError.badRequest('Username is already taken.');
       }
+
+      const roleId = await usersRepository.findRoleIdByName('Doctor', client);
       const initialPass = data.password && data.password.trim() !== '' ? data.password : 'Doctor@123';
       const initialHash = await bcrypt.hash(initialPass, env.BCRYPT_SALT_ROUNDS);
       const createdUser = await usersRepository.create(
@@ -141,12 +144,13 @@ export async function updateDoctor(id, data, actor) {
       linkedUserId = createdUser.id;
       data.userId = linkedUserId;
     } else {
-      // Sync user profile
+      // Sync user profile: name, email, and optionally username
       await usersRepository.updateProfile(
         linkedUserId,
         {
           fullName: data.name,
-          email: data.email
+          email: data.email,
+          username: data.username?.trim() || undefined
         },
         client
       );
@@ -208,8 +212,9 @@ export async function deleteDoctor(id, actor) {
   if (!current) throw ApiError.notFound('Doctor account could not be found.');
 
   const row = await withTransaction(async (client) => {
+    // Soft-delete the linked user account so email/username can be reused
     if (current.user_id) {
-      await usersRepository.updateActiveStatus(current.user_id, false, client);
+      await usersRepository.softDelete(current.user_id, client);
     }
     return await doctorsRepository.softDelete(id, client);
   });

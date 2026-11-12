@@ -3,6 +3,7 @@ export function serializeDoctor(row) {
     id: row.id,
     code: row.doctor_code,
     name: row.name,
+    username: row.username ?? null,
     specialization: row.specialization,
     phone: row.phone,
     email: row.email,

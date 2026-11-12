@@ -6,7 +6,9 @@ import { query } from '../src/config/db.js';
 describe('Staff Auth and Registration Lifecycles', () => {
   let adminToken;
   const uniqueDoctorEmail = `doc.${Date.now()}@example.com`;
+  const uniqueDoctorUsername = `dr_ravi_${Date.now()}`;
   const uniqueRecEmail = `rec.${Date.now()}@example.com`;
+  const uniqueRecUsername = `rec_test_${Date.now()}`;
   const testPassword = 'Password@123';
 
   beforeAll(async () => {
@@ -19,6 +21,7 @@ describe('Staff Auth and Registration Lifecycles', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
         name: 'Dr. Ravi Test',
+        username: uniqueDoctorUsername,
         specialization: 'Orthopedics',
         phone: '9000000010',
         email: uniqueDoctorEmail,
@@ -38,20 +41,30 @@ describe('Staff Auth and Registration Lifecycles', () => {
     const { rows: userRows } = await query('SELECT * FROM users WHERE id = $1', [docRows[0].user_id]);
     expect(userRows.length).toBe(1);
     expect(userRows[0].email).toBe(uniqueDoctorEmail);
+    expect(userRows[0].username).toBe(uniqueDoctorUsername);
     expect(userRows[0].password_hash).not.toBe(testPassword); // Confirm hashed
   });
 
-  it('allows the registered Doctor to log in and returns correct role', async () => {
+  it('allows the registered Doctor to log in using username and returns correct role', async () => {
     const res = await request(app)
       .post('/api/auth/login')
       .send({
-        username: uniqueDoctorEmail,
+        username: uniqueDoctorUsername,
         password: testPassword
       });
 
     expect(res.status).toBe(200);
     expect(res.body.data.user.role).toBe('Doctor');
     expect(res.body.data.token).toBeDefined();
+
+    // Verify login with email fails
+    const emailLogin = await request(app)
+      .post('/api/auth/login')
+      .send({
+        username: uniqueDoctorEmail,
+        password: testPassword
+      });
+    expect(emailLogin.status).toBe(401);
   });
 
   it('prevents non-admins (e.g. Doctor) from accessing Admin-only creation routes', async () => {
@@ -59,7 +72,7 @@ describe('Staff Auth and Registration Lifecycles', () => {
     const loginRes = await request(app)
       .post('/api/auth/login')
       .send({
-        username: uniqueDoctorEmail,
+        username: uniqueDoctorUsername,
         password: testPassword
       });
     const docToken = loginRes.body.data.token;
@@ -70,6 +83,7 @@ describe('Staff Auth and Registration Lifecycles', () => {
       .set('Authorization', `Bearer ${docToken}`)
       .send({
         name: 'Dr. Copycat',
+        username: `copycat_${Date.now()}`,
         specialization: 'Orthopedics',
         phone: '9000000011',
         email: `copycat.${Date.now()}@example.com`,
@@ -85,6 +99,7 @@ describe('Staff Auth and Registration Lifecycles', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
         name: 'Receptionist Test',
+        username: uniqueRecUsername,
         phone: '9000000012',
         email: uniqueRecEmail,
         password: testPassword,
@@ -101,20 +116,30 @@ describe('Staff Auth and Registration Lifecycles', () => {
     const { rows: userRows } = await query('SELECT * FROM users WHERE id = $1', [recRows[0].user_id]);
     expect(userRows.length).toBe(1);
     expect(userRows[0].email).toBe(uniqueRecEmail);
+    expect(userRows[0].username).toBe(uniqueRecUsername);
     expect(userRows[0].password_hash).not.toBe(testPassword);
   });
 
-  it('allows the registered Receptionist to log in and returns correct role', async () => {
+  it('allows the registered Receptionist to log in using username and returns correct role', async () => {
     const res = await request(app)
       .post('/api/auth/login')
       .send({
-        username: uniqueRecEmail,
+        username: uniqueRecUsername,
         password: testPassword
       });
 
     expect(res.status).toBe(200);
     expect(res.body.data.user.role).toBe('Receptionist');
     expect(res.body.data.token).toBeDefined();
+
+    // Verify login with email fails
+    const emailLogin = await request(app)
+      .post('/api/auth/login')
+      .send({
+        username: uniqueRecEmail,
+        password: testPassword
+      });
+    expect(emailLogin.status).toBe(401);
   });
 
   it('prevents duplicate email registrations across tables', async () => {
@@ -123,6 +148,7 @@ describe('Staff Auth and Registration Lifecycles', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
         name: 'Dr. Duplicate',
+        username: `dup_doc_${Date.now()}`,
         specialization: 'Cardiology',
         phone: '9000000013',
         email: uniqueDoctorEmail, // already registered
@@ -130,7 +156,24 @@ describe('Staff Auth and Registration Lifecycles', () => {
       });
 
     expect(res.status).toBe(400);
-    expect(res.body.error.message).toBe('Email is already registered');
+    expect(res.body.error.message).toMatch(/Email is already registered/i);
+  });
+
+  it('prevents duplicate username registrations', async () => {
+    const res = await request(app)
+      .post('/api/doctors')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Dr. Duplicate User',
+        username: uniqueDoctorUsername, // already registered
+        specialization: 'Cardiology',
+        phone: '9000000014',
+        email: `newdoc.${Date.now()}@example.com`,
+        password: testPassword
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toMatch(/Username is already taken/i);
   });
 
   it('correctly deactivates linked user account and blocks login upon deactivation or soft-delete', async () => {
@@ -152,7 +195,7 @@ describe('Staff Auth and Registration Lifecycles', () => {
     const loginFail1 = await request(app)
       .post('/api/auth/login')
       .send({
-        username: uniqueDoctorEmail,
+        username: uniqueDoctorUsername,
         password: testPassword
       });
     expect(loginFail1.status).toBe(403);
@@ -172,7 +215,7 @@ describe('Staff Auth and Registration Lifecycles', () => {
     const loginSuccess = await request(app)
       .post('/api/auth/login')
       .send({
-        username: uniqueDoctorEmail,
+        username: uniqueDoctorUsername,
         password: testPassword
       });
     expect(loginSuccess.status).toBe(200);
@@ -183,23 +226,25 @@ describe('Staff Auth and Registration Lifecycles', () => {
       .set('Authorization', `Bearer ${adminToken}`);
     expect(deleteRes.status).toBe(200);
 
-    // Verify user is_active is false
-    const { rows: userRows3 } = await query('SELECT is_active FROM users WHERE id = $1', [userId]);
+    // Verify user is soft-deleted (deleted_at is not null)
+    const { rows: userRows3 } = await query('SELECT is_active, deleted_at FROM users WHERE id = $1', [userId]);
     expect(userRows3[0].is_active).toBe(false);
+    expect(userRows3[0].deleted_at).not.toBeNull();
 
     // Confirm login attempt fails
     const loginFail2 = await request(app)
       .post('/api/auth/login')
       .send({
-        username: uniqueDoctorEmail,
+        username: uniqueDoctorUsername,
         password: testPassword
       });
-    expect(loginFail2.status).toBe(403);
+    expect(loginFail2.status).toBe(401); // Soft-deleted accounts cannot login (not found in active users)
   });
 
   it('preserves the old password when edited with an empty password, and updates it when a new password is provided', async () => {
     // 1. Create a doctor to edit
     const editDocEmail = `edit.${Date.now()}@example.com`;
+    const editDocUsername = `edit_doc_${Date.now()}`;
     const initialPassword = 'Password@Initial';
     const updatedPassword = 'Password@Updated';
 
@@ -208,6 +253,7 @@ describe('Staff Auth and Registration Lifecycles', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
         name: 'Dr. Editable',
+        username: editDocUsername,
         specialization: 'Orthopedics',
         phone: '9000000088',
         email: editDocEmail,
@@ -223,6 +269,7 @@ describe('Staff Auth and Registration Lifecycles', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
         name: 'Dr. Editable Updated Name',
+        username: editDocUsername,
         specialization: 'Orthopedics',
         phone: '9000000088',
         email: editDocEmail,
@@ -235,7 +282,7 @@ describe('Staff Auth and Registration Lifecycles', () => {
     const loginInitial = await request(app)
       .post('/api/auth/login')
       .send({
-        username: editDocEmail,
+        username: editDocUsername,
         password: initialPassword
       });
     expect(loginInitial.status).toBe(200);
@@ -246,6 +293,7 @@ describe('Staff Auth and Registration Lifecycles', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
         name: 'Dr. Editable Updated Name',
+        username: editDocUsername,
         specialization: 'Orthopedics',
         phone: '9000000088',
         email: editDocEmail,
@@ -258,7 +306,7 @@ describe('Staff Auth and Registration Lifecycles', () => {
     const loginOld = await request(app)
       .post('/api/auth/login')
       .send({
-        username: editDocEmail,
+        username: editDocUsername,
         password: initialPassword
       });
     expect(loginOld.status).toBe(401);
@@ -267,7 +315,7 @@ describe('Staff Auth and Registration Lifecycles', () => {
     const loginNew = await request(app)
       .post('/api/auth/login')
       .send({
-        username: editDocEmail,
+        username: editDocUsername,
         password: updatedPassword
       });
     expect(loginNew.status).toBe(200);
@@ -275,14 +323,16 @@ describe('Staff Auth and Registration Lifecycles', () => {
 
   it('rolls back user account creation if doctor profile creation fails due to validation/DB constraints', async () => {
     const errorEmail = `fail.${Date.now()}@example.com`;
+    const errorUsername = `fail_doc_${Date.now()}`;
     
-    // Call service directly to bypass route Zod validation and trigger database check constraint
+    // Call service directly to trigger database check constraint
     const doctorsService = await import('../src/modules/doctors/doctors.service.js');
     
     let errorThrown = null;
     try {
       await doctorsService.createDoctor({
         name: 'Dr. Fail Transaction',
+        username: errorUsername,
         specialization: 'Orthopedics',
         phone: '9000000015',
         email: errorEmail,

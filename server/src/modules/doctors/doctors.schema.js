@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const createDoctorSchema = z.object({
   name: z.string().min(1).max(150),
+  username: z.string().trim().min(1, 'Username is required').max(50, 'Username must be at most 50 characters'),
   specialization: z.string().min(1).max(100),
   phone: z.string().min(7).max(15),
   email: z.string().email().max(150),

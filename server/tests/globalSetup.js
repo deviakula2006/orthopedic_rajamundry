@@ -16,7 +16,8 @@ const MIGRATIONS = [
   '0004_appointment_conflict_fix.sql',
   '0005_bed_management_rewrite.sql',
   '0006_appointment_types_and_gst.sql',
-  '0007_password_recovery_and_hospital_email.sql'
+  '0007_password_recovery_and_hospital_email.sql',
+  '0008_username_email_independent.sql'
 ];
 
 /**

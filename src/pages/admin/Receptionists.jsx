@@ -33,6 +33,7 @@ const Receptionists = () => {
   // Form states
   const [formData, setFormData] = useState({
     name: '',
+    username: '',
     phone: '',
     email: '',
     shift: '08:00 AM – 04:00 PM',
@@ -44,6 +45,7 @@ const Receptionists = () => {
   const handleOpenAdd = () => {
     setFormData({
       name: '',
+      username: '',
       phone: '',
       email: '',
       shift: '08:00 AM – 04:00 PM',
@@ -58,6 +60,7 @@ const Receptionists = () => {
     setSelectedRec(rec);
     setFormData({
       name: rec.name || '',
+      username: rec.username || '',
       phone: rec.phone || '',
       email: rec.email || '',
       shift: rec.shift || '08:00 AM – 04:00 PM',
@@ -193,7 +196,9 @@ const Receptionists = () => {
           </div>
           <div>
             <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.8125rem' }}>{row.name}</div>
-            <div style={{ fontWeight: 500, color: '#374151', fontSize: '0.7rem', marginTop: 1 }}>{row.email}</div>
+            <div style={{ fontWeight: 500, color: '#374151', fontSize: '0.7rem', marginTop: 1 }}>
+              {row.email} {row.username ? `• @${row.username}` : ''}
+            </div>
           </div>
         </div>
       )
@@ -308,18 +313,35 @@ const Receptionists = () => {
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-              Email Address
-            </label>
-            <input
-              type="email"
-              required
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="e.g. kishore.k@roh.com"
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
-            />
+          {/* Username & Email */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                Username <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.username}
+                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                placeholder="e.g. kishore_rec"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
+              />
+              <p className="text-[10px] text-slate-400 mt-1">Used for login. Must be unique.</p>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                Email Address
+              </label>
+              <input
+                type="email"
+                required
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="e.g. kishore.k@roh.com"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
+              />
+            </div>
           </div>
 
           <div className="pt-1">
@@ -407,17 +429,34 @@ const Receptionists = () => {
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-              Email Address
-            </label>
-            <input
-              type="email"
-              required
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
-            />
+          {/* Username & Email */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                Username <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.username}
+                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                placeholder="e.g. kishore_rec"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
+              />
+              <p className="text-[10px] text-slate-400 mt-1">Used for login. Must be unique.</p>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                Email Address
+              </label>
+              <input
+                type="email"
+                required
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm font-semibold text-slate-700 focus:border-hospital-500 focus:bg-white focus:outline-none transition-all"
+              />
+            </div>
           </div>
 
           <div className="pt-1">
@@ -517,6 +556,10 @@ const Receptionists = () => {
               <div>
                 <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Name</span>
                 <span className="text-sm font-semibold text-slate-700">{viewRec.name}</span>
+              </div>
+              <div>
+                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Username</span>
+                <span className="text-sm font-semibold text-slate-700 font-mono">@{viewRec.username || '—'}</span>
               </div>
               <div>
                 <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">Email Address</span>

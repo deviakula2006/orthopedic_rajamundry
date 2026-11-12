@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const createReceptionistSchema = z.object({
   name: z.string().min(1).max(150),
+  username: z.string().trim().min(1, 'Username is required').max(50, 'Username must be at most 50 characters'),
   phone: z.string().min(7).max(15),
   email: z.string().email().max(150),
   status: z.enum(['Active', 'Inactive', 'On Leave']).optional(),

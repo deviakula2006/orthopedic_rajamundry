@@ -21,7 +21,8 @@ function signToken(user) {
 }
 
 export async function login(username, password) {
-  const user = await usersRepository.findByUsernameOrEmail(username);
+  // Login by username only — email is not accepted as a login identifier
+  const user = await usersRepository.findByUsername(username);
 
   // Compare against a fixed dummy hash when the user doesn't exist so the
   // response time doesn't leak whether the username is valid.
@@ -82,12 +83,31 @@ export async function updateProfile(userId, data) {
   const user = await usersRepository.findById(userId);
   if (!user) throw ApiError.notFound('User not found');
 
+  // If username is being changed, validate uniqueness (exclude self)
+  if (data.username !== undefined && data.username.trim() !== '') {
+    const newUsername = data.username.trim();
+    if (await usersRepository.isUsernameTaken(newUsername, userId)) {
+      throw ApiError.badRequest('Username is already taken.');
+    }
+  }
+
+  // If email is being changed, validate uniqueness (exclude self)
+  if (data.email !== undefined && data.email.toLowerCase() !== user.email.toLowerCase()) {
+    if (await usersRepository.isEmailTaken(data.email, userId)) {
+      throw ApiError.badRequest('Email is already registered');
+    }
+  }
+
   await withTransaction(async (client) => {
-    // 1. Update user table
-    if (data.name !== undefined || data.email !== undefined) {
+    // 1. Update user table (name, email, username)
+    if (data.name !== undefined || data.email !== undefined || data.username !== undefined) {
       await usersRepository.updateProfile(
         userId,
-        { fullName: data.name, email: data.email },
+        {
+          fullName: data.name,
+          email: data.email,
+          username: data.username?.trim() || undefined
+        },
         client
       );
     }
@@ -156,7 +176,8 @@ export async function changePassword(userId, { currentPassword, newPassword }) {
  * Dispatches a cryptographically secure 6-digit OTP to the hospital's registered email.
  */
 export async function requestPasswordReset(username) {
-  const user = await usersRepository.findByUsernameOrEmail(username);
+  // Look up by username only (strict — email cannot substitute)
+  const user = await usersRepository.findByUsername(username);
 
   // Return generic response without revealing account existence
   const genericMessage =
@@ -204,7 +225,7 @@ export async function requestPasswordReset(username) {
  * Verifies OTP, tracks attempt limits, and issues a single-use reset token.
  */
 export async function verifyPasswordResetOtp({ username, otp }) {
-  const user = await usersRepository.findByUsernameOrEmail(username);
+  const user = await usersRepository.findByUsername(username);
   if (!user || !user.is_active) {
     throw ApiError.badRequest('Invalid or expired verification code');
   }
@@ -248,7 +269,7 @@ export async function verifyPasswordResetOtp({ username, otp }) {
  * 3. Reset Password with verified token
  */
 export async function resetPassword({ username, resetToken, newPassword }) {
-  const user = await usersRepository.findByUsernameOrEmail(username);
+  const user = await usersRepository.findByUsername(username);
   if (!user || !user.is_active) {
     throw ApiError.badRequest('Invalid or expired reset session');
   }
