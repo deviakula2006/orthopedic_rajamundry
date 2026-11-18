@@ -37,7 +37,10 @@ export const listBillsQuerySchema = z.object({
   limit: z.coerce.number().int().positive().optional(),
   patientId: z.string().uuid().optional(),
   paymentStatus: z.enum(PAYMENT_STATUS).optional(),
-  billType: z.enum(BILL_TYPE).optional()
+  billType: z.string().optional(),
+  search: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional()
 });
 
 export const pendingInvestigationsQuerySchema = z.object({

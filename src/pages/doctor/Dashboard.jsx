@@ -83,11 +83,21 @@ const DoctorDashboard = () => {
             Consultation desk is active. Select any patient card to review history or record notes.
           </p>
         </div>
-        <div className="flex items-center gap-3 shrink-0 bg-white/10 border border-white/20 rounded-xl px-4 py-2.5 backdrop-blur-sm">
-          <Calendar className="h-5 w-5 text-blue-200" />
-          <span className="text-xs font-extrabold">
-            {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })}
-          </span>
+        <div className="flex items-center gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={() => navigate('/doctor/my-patients')}
+            className="flex items-center gap-2 bg-white/20 hover:bg-white/30 border border-white/30 rounded-xl px-4 py-2.5 backdrop-blur-sm text-xs font-black text-white transition-all shadow-sm cursor-pointer"
+          >
+            <Users className="h-4 w-4 text-blue-200" />
+            <span>My Patients</span>
+          </button>
+          <div className="flex items-center gap-2 bg-white/10 border border-white/20 rounded-xl px-4 py-2.5 backdrop-blur-sm">
+            <Calendar className="h-5 w-5 text-blue-200" />
+            <span className="text-xs font-extrabold">
+              {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })}
+            </span>
+          </div>
         </div>
       </div>
 

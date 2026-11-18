@@ -29,6 +29,7 @@ import ProfileSettings from '../pages/common/ProfileSettings';
 // Doctor Module Pages
 import DoctorDashboard from '../pages/doctor/Dashboard';
 import PatientProfile from '../pages/doctor/PatientProfile';
+import MyPatients from '../pages/doctor/MyPatients';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, isAuthenticated, loading } = useAuth();
@@ -118,6 +119,7 @@ const AppRoutes = () => {
       >
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<DoctorDashboard />} />
+        <Route path="my-patients" element={<MyPatients />} />
         <Route path="patient/:patientId" element={<PatientProfile />} />
         <Route path="profile" element={<ProfileSettings />} />
         <Route path="settings" element={<ProfileSettings />} />

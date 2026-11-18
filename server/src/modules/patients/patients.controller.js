@@ -1,6 +1,8 @@
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendSuccess } from '../../utils/ApiResponse.js';
 import { parsePagination } from '../../utils/pagination.js';
+import { ApiError } from '../../utils/ApiError.js';
+import * as doctorsRepository from '../doctors/doctors.repository.js';
 import * as patientsService from './patients.service.js';
 
 export const list = asyncHandler(async (req, res) => {
@@ -10,6 +12,15 @@ export const list = asyncHandler(async (req, res) => {
 });
 
 export const getById = asyncHandler(async (req, res) => {
+  if (req.user?.role === 'Doctor') {
+    const doctor = await doctorsRepository.findByUserId(req.user.id);
+    if (doctor) {
+      const isAssociated = await doctorsRepository.isPatientAssociatedWithDoctor(req.params.id, doctor.id);
+      if (!isAssociated) {
+        throw ApiError.forbidden('You do not have permission to access this patient profile');
+      }
+    }
+  }
   const patient = await patientsService.getPatient(req.params.id);
   sendSuccess(res, { data: patient });
 });

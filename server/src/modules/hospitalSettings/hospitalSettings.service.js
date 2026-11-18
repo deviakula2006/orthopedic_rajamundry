@@ -55,7 +55,7 @@ export async function requestRecoveryEmailChange({ email }, actor) {
     userId: actor.id,
     actorName: actor.name,
     action: `Initiated verification for new hospital recovery email: ${normalizedEmail}`,
-    activityType: 'security',
+    activityType: 'auth',
     entityType: 'hospital_settings',
     entityId: null
   });
@@ -88,7 +88,7 @@ export async function verifyRecoveryEmailChange({ otp }, actor) {
     userId: actor.id,
     actorName: actor.name,
     action: `Verified and activated new hospital recovery email: ${updated.email}`,
-    activityType: 'security',
+    activityType: 'auth',
     entityType: 'hospital_settings',
     entityId: null
   });

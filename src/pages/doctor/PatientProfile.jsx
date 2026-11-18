@@ -472,10 +472,10 @@ const PatientProfile = () => {
                 time: visit.time || '10:00 AM',
                 addedBy: visit.doctorName || 'Doctor',
                 symptoms: visit.notes,
-                findings: 'Recorded in visit notes',
-                diagnosis: visit.diagnosis || 'Osteoarthritis Knee',
-                advice: 'Recorded in visit notes',
-                followUp: 'As directed'
+                findings: '',
+                diagnosis: visit.diagnosis || '',
+                advice: '',
+                followUp: ''
               };
             }
             
@@ -588,11 +588,11 @@ const PatientProfile = () => {
                                 </div>
                               </div>
                               <span className={`inline-block rounded px-2.5 py-0.5 text-[9px] font-black border ${
-                                inv.status === 'Completed'
+                                (inv.status === 'Completed' || inv.billingStatus === 'Billed' || inv.billId)
                                   ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                                  : 'bg-amber-50 text-amber-600 border-amber-100 animate-pulse'
+                                  : 'bg-amber-50 text-amber-600 border-amber-100'
                               }`}>
-                                {inv.status}
+                                {(inv.status === 'Completed' || inv.billingStatus === 'Billed' || inv.billId) ? 'Completed' : 'Ordered'}
                               </span>
                             </div>
                           ))}
@@ -666,23 +666,23 @@ const PatientProfile = () => {
                           <div className="grid gap-3.5 sm:grid-cols-2 text-xs font-semibold text-slate-650">
                             <div>
                               <span className="text-[9px] font-bold text-slate-400 uppercase block">Symptoms</span>
-                              <p className="text-slate-800 font-bold mt-0.5">{visitSummary.symptoms}</p>
+                              <p className="text-slate-800 font-bold mt-0.5">{visitSummary.symptoms || '—'}</p>
                             </div>
                             <div>
                               <span className="text-[9px] font-bold text-slate-400 uppercase block">Clinical Findings</span>
-                              <p className="text-slate-800 font-bold mt-0.5">{visitSummary.findings}</p>
+                              <p className="text-slate-800 font-bold mt-0.5">{visitSummary.findings || '—'}</p>
                             </div>
                             <div>
                               <span className="text-[9px] font-bold text-slate-400 uppercase block">Diagnosis</span>
-                              <p className="text-slate-800 font-bold mt-0.5">{visitSummary.diagnosis}</p>
+                              <p className="text-slate-800 font-bold mt-0.5">{visitSummary.diagnosis || '—'}</p>
                             </div>
                             <div>
                               <span className="text-[9px] font-bold text-slate-400 uppercase block">Advice / Plan</span>
-                              <p className="text-slate-800 font-bold mt-0.5">{visitSummary.advice}</p>
+                              <p className="text-slate-800 font-bold mt-0.5">{visitSummary.advice || '—'}</p>
                             </div>
                             <div className="sm:col-span-2">
                               <span className="text-[9px] font-bold text-slate-400 uppercase block">Follow-up Instructions</span>
-                              <p className="text-slate-800 font-bold mt-0.5">{visitSummary.followUp}</p>
+                              <p className="text-slate-800 font-bold mt-0.5">{visitSummary.followUp || '—'}</p>
                             </div>
                           </div>
                         </div>

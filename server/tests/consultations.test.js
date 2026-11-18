@@ -24,7 +24,7 @@ describe('Doctor Consultations & EMR API', () => {
         patientId,
         doctorId,
         appointmentDate: new Date().toISOString().slice(0, 10),
-        appointmentTime: '16:00',
+        appointmentTime: '23:55',
         fee: 500,
         notes: 'Severe knee stiffness'
       });
@@ -155,5 +155,26 @@ describe('Doctor Consultations & EMR API', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.metrics).toBeDefined();
     expect(res.body.data.queue).toBeDefined();
+  });
+
+  it('fetches doctor my-patients directory without SQL errors', async () => {
+    const res = await request(app)
+      .get(`/api/doctors/my-patients?doctorId=${doctorId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+    expect(res.body.data[0].id).toBeDefined();
+    expect(res.body.data[0].name).toBeDefined();
+  });
+
+  it('filters my-patients directory using search query', async () => {
+    const res = await request(app)
+      .get(`/api/doctors/my-patients?doctorId=${doctorId}&search=Consultation+Patient`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
   });
 });

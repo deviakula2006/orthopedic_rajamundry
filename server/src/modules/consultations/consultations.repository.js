@@ -89,9 +89,10 @@ async function attachChildRecords(consultation, client) {
     ),
     q(
       `SELECT ci.id, ci.consultation_id, ci.investigation_id, ci.test_name, ci.status,
+              ci.billing_status, ci.bill_id, ci.ordered_by_name,
               ci.result, ci.ordered_at, ci.completed_at,
               inv.investigation_code, inv.category, inv.price,
-              d.name AS doctor_name
+              COALESCE(ci.ordered_by_name, d.name, 'Doctor') AS doctor_name
        FROM consultation_investigations ci
        JOIN consultations c ON c.id = ci.consultation_id
        JOIN doctors d ON d.id = c.doctor_id

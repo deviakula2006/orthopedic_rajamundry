@@ -235,6 +235,35 @@ export async function getDoctorMe(user) {
   return serializeDoctor(doctor);
 }
 
+export async function getMyPatients(user, queryParams = {}) {
+  let doctor = await doctorsRepository.findByUserId(user.id);
+
+  if (!doctor && queryParams.doctorId) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(queryParams.doctorId);
+    doctor = isUuid ? await doctorsRepository.findById(queryParams.doctorId) : await doctorsRepository.findByCode(queryParams.doctorId);
+  }
+
+  if (!doctor) throw ApiError.notFound('Doctor profile not found');
+
+  const rows = await doctorsRepository.listMyPatients(doctor.id, queryParams.search);
+  return rows.map((row) => ({
+    id: row.id,
+    patientCode: row.patient_code,
+    name: row.name,
+    age: row.age,
+    gender: row.gender,
+    phone: row.phone,
+    address: row.address,
+    bloodGroup: row.blood_group,
+    primaryDiagnosis: row.primary_diagnosis,
+    lastVisitDate: row.last_visit_date || row.last_visit,
+    lastVisit: row.last_visit,
+    latestAppointmentType: row.latest_appointment_type,
+    latestAppointmentStatus: row.latest_appointment_status,
+    createdAt: row.created_at
+  }));
+}
+
 export async function getDoctorDashboard(user, queryParams = {}) {
   let doctor = await doctorsRepository.findByUserId(user.id);
 

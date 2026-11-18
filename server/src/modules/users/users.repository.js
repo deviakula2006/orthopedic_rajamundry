@@ -22,10 +22,7 @@ export async function findByRegisteredEmail(email, client) {
   const q = client ? client.query.bind(client) : query;
   const { rows } = await q(
     `SELECT ${SELECT_FIELDS} FROM users u JOIN roles r ON r.id = u.role_id
-     WHERE LOWER(TRIM(u.email)) = LOWER(TRIM($1))
-       AND u.deleted_at IS NULL
-       AND u.is_active = TRUE
-       AND r.name IN ('Admin', 'Doctor', 'Receptionist')`,
+     WHERE LOWER(u.email) = LOWER($1) AND u.deleted_at IS NULL AND u.is_active = TRUE`,
     [email]
   );
   return rows[0] ?? null;

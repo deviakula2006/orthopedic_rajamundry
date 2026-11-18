@@ -12,20 +12,24 @@ import AppointmentModal from '../../components/modals/AppointmentModal';
 import AddVitalsModal from '../../components/modals/AddVitalsModal';
 import OrderInvestigationModal from '../../components/modals/OrderInvestigationModal';
 
-const FILTER_TABS = [
-  { id: 'Today',     label: "Today"     },
-  { id: 'Tomorrow',  label: 'Tomorrow'  },
-  { id: 'Upcoming',  label: 'Upcoming'  },
+const DATE_FILTERS = [
+  { id: 'Today',    label: 'Today'    },
+  { id: 'Tomorrow', label: 'Tomorrow' },
+  { id: 'Upcoming', label: 'Upcoming' },
+];
+
+const STATUS_FILTERS = [
+  { id: 'All',       label: 'All'       },
   { id: 'Completed', label: 'Completed' },
   { id: 'Cancelled', label: 'Cancelled' },
-  { id: 'All',       label: 'All'       },
 ];
 
 const Appointments = () => {
   const { appointments, patients, addPatient, updateAppointmentStatus, deleteAppointment } = useHospital();
 
   const [tableSearchQuery, setTableSearchQuery] = useState('');
-  const [filterTab, setFilterTab] = useState('Today');
+  const [dateFilter, setDateFilter] = useState('Today');
+  const [statusFilter, setStatusFilter] = useState('All');
   const [selectedApt, setSelectedApt] = useState(null);
 
   const [patientModalOpen,     setPatientModalOpen]     = useState(false);
@@ -37,9 +41,21 @@ const Appointments = () => {
   const [selectedPatientId,    setSelectedPatientId]    = useState('');
   const [selectedAptId,        setSelectedAptId]        = useState('');
 
-  const todayStr    = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }, []);
+
   const tomorrowStr = useMemo(() => {
-    const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0];
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   }, []);
 
   const handleSavePatient = (data) => {
@@ -65,30 +81,56 @@ const Appointments = () => {
     }
   };
 
-  const filteredAppointments = useMemo(() => {
+  // Primary level date-filtered appointments
+  const dateAppointments = useMemo(() => {
     let r = [...appointments];
-    if (filterTab === 'Today')     r = r.filter(a => a.date === todayStr && a.status !== 'Completed' && a.status !== 'Cancelled');
-    else if (filterTab === 'Tomorrow')  r = r.filter(a => a.date === tomorrowStr);
-    else if (filterTab === 'Upcoming')  r = r.filter(a => a.date >= todayStr && a.status !== 'Completed' && a.status !== 'Cancelled');
-    else if (filterTab === 'Completed') r = r.filter(a => a.status === 'Completed');
-    else if (filterTab === 'Cancelled') r = r.filter(a => a.status === 'Cancelled');
+    if (dateFilter === 'Today') {
+      r = r.filter(a => a.date === todayStr);
+    } else if (dateFilter === 'Tomorrow') {
+      r = r.filter(a => a.date === tomorrowStr);
+    } else if (dateFilter === 'Upcoming') {
+      r = r.filter(a => a.date > tomorrowStr);
+    }
+    return r;
+  }, [appointments, dateFilter, todayStr, tomorrowStr]);
 
+  // Counts for secondary status tabs within selected date group
+  const dateCounts = useMemo(() => {
+    const all = dateAppointments.length;
+    const completed = dateAppointments.filter(a => a.status === 'Completed').length;
+    const cancelled = dateAppointments.filter(a => a.status === 'Cancelled').length;
+    return { all, completed, cancelled };
+  }, [dateAppointments]);
+
+  // Combined level-1 (date), level-2 (status), and search query filtering
+  const filteredAppointments = useMemo(() => {
+    let r = [...dateAppointments];
+
+    // Level 2: Status filtering within selected date group
+    if (statusFilter === 'Completed') {
+      r = r.filter(a => a.status === 'Completed');
+    } else if (statusFilter === 'Cancelled') {
+      r = r.filter(a => a.status === 'Cancelled');
+    }
+
+    // Search query
     if (tableSearchQuery.trim()) {
-      const q = tableSearchQuery.toLowerCase();
+      const q = tableSearchQuery.toLowerCase().trim();
       r = r.filter(a =>
         (a.patientName  && a.patientName.toLowerCase().includes(q)) ||
         (a.patientId    && a.patientId.toLowerCase().includes(q))   ||
         (a.doctorName   && a.doctorName.toLowerCase().includes(q))  ||
         (a.id           && a.id.toLowerCase().includes(q))          ||
+        (a.appointmentCode && a.appointmentCode.toLowerCase().includes(q)) ||
         (a.patientPhone && a.patientPhone.includes(q))
       );
     }
 
     return r.sort((a, b) => {
-      if (a.date !== b.date) return (a.date||'').localeCompare(b.date||'');
-      return (a.time||'').localeCompare(b.time||'');
+      if (a.date !== b.date) return (a.date || '').localeCompare(b.date || '');
+      return (a.time || '').localeCompare(b.time || '');
     });
-  }, [appointments, filterTab, tableSearchQuery, todayStr, tomorrowStr]);
+  }, [dateAppointments, statusFilter, tableSearchQuery]);
 
   const columns = [
     {
@@ -224,47 +266,102 @@ const Appointments = () => {
         </div>
       </div>
 
-      {/* ─── Tabs + Search + Table ───────────────────── */}
+      {/* ─── Two-Level Filters + Search + Table ─────────────────────── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
         {/* Top toolbar */}
-        <div style={{ background: '#fff', border: '1px solid #e8eaed', borderRadius: 12, padding: '0.875rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
-          {/* Filter tabs */}
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            {FILTER_TABS.map(tab => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setFilterTab(tab.id)}
+        <div style={{ background: '#fff', border: '1px solid #e8eaed', borderRadius: 12, padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+          {/* Level 1: Primary Date Filters + Search Box */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.6875rem', fontWeight: 800, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>
+                Date:
+              </span>
+              {DATE_FILTERS.map(tab => {
+                const isActive = dateFilter === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => {
+                      setDateFilter(tab.id);
+                      setStatusFilter('All');
+                    }}
+                    style={{
+                      padding: '6px 14px', borderRadius: 8,
+                      fontSize: '0.8125rem', fontWeight: 700,
+                      cursor: 'pointer', border: isActive ? '1px solid #2278e8' : '1px solid #e5e7eb',
+                      transition: 'all 120ms ease',
+                      background: isActive ? '#2278e8' : '#ffffff',
+                      color:      isActive ? '#ffffff' : '#374151',
+                      boxShadow:  isActive ? '0 2px 4px rgba(34,120,232,0.22)' : 'none',
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Search box */}
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <Search style={{ position: 'absolute', left: 10, width: 14, height: 14, color: '#6b7280', pointerEvents: 'none' }} />
+              <input
+                type="text"
+                value={tableSearchQuery}
+                onChange={e => setTableSearchQuery(e.target.value)}
+                placeholder="Search by patient, ID, doctor..."
                 style={{
-                  padding: '5px 12px', borderRadius: 7,
-                  fontSize: '0.75rem', fontWeight: 600,
-                  cursor: 'pointer', border: 'none', transition: 'all 120ms',
-                  background: filterTab === tab.id ? '#2278e8' : '#f3f4f6',
-                  color:      filterTab === tab.id ? '#ffffff' : '#1f2937',
+                  paddingLeft: 32, paddingRight: 12, height: 34, width: 250,
+                  borderRadius: 8, border: '1px solid #e5e7eb', background: '#f9fafb',
+                  fontSize: '0.8125rem', color: '#0f172a', fontWeight: 400,
+                  outline: 'none', transition: 'all 120ms',
                 }}
-              >
-                {tab.label}
-              </button>
-            ))}
+                onFocus={e => { e.target.style.background = '#fff'; e.target.style.borderColor = '#3898f3'; e.target.style.boxShadow = '0 0 0 3px rgba(56,152,243,0.10)'; }}
+                onBlur={e  => { e.target.style.background = '#f9fafb'; e.target.style.borderColor = '#e5e7eb'; e.target.style.boxShadow = 'none'; }}
+              />
+            </div>
           </div>
 
-          {/* Search box */}
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-            <Search style={{ position: 'absolute', left: 10, width: 14, height: 14, color: '#6b7280', pointerEvents: 'none' }} />
-            <input
-              type="text"
-              value={tableSearchQuery}
-              onChange={e => setTableSearchQuery(e.target.value)}
-              placeholder="Search by name, ID, doctor…"
-              style={{
-                paddingLeft: 32, paddingRight: 12, height: 34, width: 240,
-                borderRadius: 8, border: '1px solid #e5e7eb', background: '#f9fafb',
-                fontSize: '0.8125rem', color: '#0f172a', fontWeight: 400,
-                outline: 'none', transition: 'all 120ms',
-              }}
-              onFocus={e => { e.target.style.background = '#fff'; e.target.style.borderColor = '#3898f3'; e.target.style.boxShadow = '0 0 0 3px rgba(56,152,243,0.10)'; }}
-              onBlur={e  => { e.target.style.background = '#f9fafb'; e.target.style.borderColor = '#e5e7eb'; e.target.style.boxShadow = 'none'; }}
-            />
+          {/* Level 2: Secondary Status Filters */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', paddingTop: '0.625rem', borderTop: '1px solid #f1f3f4' }}>
+            <span style={{ fontSize: '0.6875rem', fontWeight: 800, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>
+              Status:
+            </span>
+            {STATUS_FILTERS.map(tab => {
+              const isActive = statusFilter === tab.id;
+              const count = tab.id === 'All'
+                ? dateCounts.all
+                : tab.id === 'Completed'
+                ? dateCounts.completed
+                : dateCounts.cancelled;
+
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setStatusFilter(tab.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    padding: '4px 12px', borderRadius: 6,
+                    fontSize: '0.75rem', fontWeight: 600,
+                    cursor: 'pointer', border: isActive ? '1px solid #bfdbfe' : '1px solid #e5e7eb',
+                    transition: 'all 120ms ease',
+                    background: isActive ? '#eff6ff' : '#f9fafb',
+                    color:      isActive ? '#1d4ed8' : '#4b5563',
+                  }}
+                >
+                  <span>{tab.label}</span>
+                  <span style={{
+                    fontSize: '0.6875rem', fontWeight: 700,
+                    padding: '1px 5px', borderRadius: 4,
+                    background: isActive ? '#dbeafe' : '#e5e7eb',
+                    color:      isActive ? '#1e40af' : '#6b7280',
+                  }}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -274,8 +371,9 @@ const Appointments = () => {
           <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#0f172a' }}>
             {filteredAppointments.length} appointment{filteredAppointments.length !== 1 ? 's' : ''}
           </span>
-          <span style={{ fontSize: '0.75rem', color: '#374151' }}>
-            · {filterTab === 'Today' ? 'today' : filterTab.toLowerCase()}
+          <span style={{ fontSize: '0.75rem', color: '#4b5563' }}>
+            · {dateFilter} · {statusFilter === 'All' ? 'All Statuses' : statusFilter}
+            {tableSearchQuery.trim() ? ` · matching "${tableSearchQuery.trim()}"` : ''}
           </span>
         </div>
 
@@ -283,7 +381,7 @@ const Appointments = () => {
         <Table
           columns={columns}
           data={filteredAppointments}
-          emptyMessage={`No ${filterTab.toLowerCase()} appointments`}
+          emptyMessage={`No ${statusFilter !== 'All' ? statusFilter.toLowerCase() + ' ' : ''}appointments scheduled for ${dateFilter.toLowerCase()}`}
           itemsPerPage={8}
           actions={row => (
             <ThreeDotMenu

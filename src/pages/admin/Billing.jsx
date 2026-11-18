@@ -1,12 +1,42 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useHospital } from '../../context/HospitalContext';
 import { Table } from '../../components/ui/Table';
 import { Modal } from '../../components/ui/Modal';
-import { Plus, Printer, Eye, Receipt, PlusCircle, Download, RefreshCw } from 'lucide-react';
+import { Plus, Printer, Eye, Receipt, PlusCircle, Download, RefreshCw, Search, X, Calendar, Filter } from 'lucide-react';
 import Autocomplete from '../../components/common/Autocomplete';
 import apiClient from '../../services/api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
+function formatBillDate(val) {
+  if (!val) return '—';
+  try {
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return String(val);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}-${month}-${year}`;
+  } catch {
+    return String(val);
+  }
+}
+
+function formatBillTime(val) {
+  if (!val) return '—';
+  try {
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return '—';
+    let hours = d.getHours();
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    const hh = String(hours).padStart(2, '0');
+    return `${hh}:${minutes} ${ampm}`;
+  } catch {
+    return '—';
+  }
+}
 
 const Billing = () => {
   const {
@@ -359,7 +389,88 @@ const Billing = () => {
     window.print();
   };
 
-  // Table Columns Setup
+  // Search & Filter state for Billing Invoices (Phase 1)
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState('');
+  const [filterPaymentStatus, setFilterPaymentStatus] = useState('All');
+  const [filterCategory, setFilterCategory] = useState('All');
+
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setFilterStartDate('');
+    setFilterEndDate('');
+    setFilterPaymentStatus('All');
+    setFilterCategory('All');
+  };
+
+  const isFiltered = Boolean(
+    searchTerm.trim() ||
+    filterStartDate ||
+    filterEndDate ||
+    filterPaymentStatus !== 'All' ||
+    filterCategory !== 'All'
+  );
+
+  const filteredBills = useMemo(() => {
+    return bills.filter((b) => {
+      // 1. Universal Search Filter (Invoice ID, Patient Name, Patient ID, Doctor Name, Item/Investigation Name, Amount)
+      if (searchTerm.trim()) {
+        const query = searchTerm.trim().toLowerCase();
+        const invoiceNo = (b.invoiceNo || '').toLowerCase();
+        const patientName = (b.patientName || '').toLowerCase();
+        const patientId = (b.patientId || '').toLowerCase();
+        const doctorName = (b.doctorName || '').toLowerCase();
+        const itemNames = (b.itemNames || '').toLowerCase();
+        const totalStr = String(b.total ?? '');
+        const itemsText = (b.items || []).map((it) => it.description || '').join(' ').toLowerCase();
+
+        const matchesQuery =
+          invoiceNo.includes(query) ||
+          patientName.includes(query) ||
+          patientId.includes(query) ||
+          doctorName.includes(query) ||
+          itemNames.includes(query) ||
+          itemsText.includes(query) ||
+          totalStr.includes(query);
+
+        if (!matchesQuery) return false;
+      }
+
+      // 2. Start Date Filter
+      if (filterStartDate) {
+        const billDateStr = b.date || (b.createdAt ? b.createdAt.slice(0, 10) : '');
+        if (billDateStr && billDateStr < filterStartDate) return false;
+      }
+
+      // 3. End Date Filter
+      if (filterEndDate) {
+        const billDateStr = b.date || (b.createdAt ? b.createdAt.slice(0, 10) : '');
+        if (billDateStr && billDateStr > filterEndDate) return false;
+      }
+
+      // 4. Payment Status Filter
+      if (filterPaymentStatus !== 'All') {
+        if (b.paymentStatus !== filterPaymentStatus) return false;
+      }
+
+      // 5. Billing Category / Scope Filter
+      if (filterCategory !== 'All') {
+        const cat = b.billType || '';
+        if (filterCategory === 'Consultation') {
+          if (cat !== 'Consultation' && cat !== 'OPD') return false;
+        } else if (filterCategory === 'Investigations') {
+          if (cat !== 'Investigations' && cat !== 'Lab') return false;
+        } else if (filterCategory === 'Both') {
+          if (cat !== 'Both') return false;
+        }
+      }
+
+      return true;
+    });
+  }, [bills, searchTerm, filterStartDate, filterEndDate, filterPaymentStatus, filterCategory]);
+
+  // Table Columns Setup (Phase 2 - Date & Time in separate columns)
   const columns = [
     {
       key: 'invoiceNo', header: 'Invoice ID', sortable: true,
@@ -372,21 +483,44 @@ const Billing = () => {
     {
       key: 'patientName', header: 'Patient Name', sortable: true,
       render: (row) => (
-        <div>
-          <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.8125rem' }}>{row.patientName}</div>
-          <div style={{ fontWeight: 500, color: '#64748b', fontSize: '0.7rem' }}>{row.patientId}</div>
-        </div>
+        <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.8125rem' }}>
+          {row.patientName}
+        </span>
+      )
+    },
+    {
+      key: 'patientId', header: 'Patient ID', sortable: true,
+      render: (row) => (
+        <span style={{ fontFamily: 'monospace', fontWeight: 600, color: '#64748b', fontSize: '0.75rem' }}>
+          {row.patientId || '—'}
+        </span>
       )
     },
     {
       key: 'doctorName', header: 'Consultant', sortable: true,
-      render: (row) => <span style={{ fontWeight: 600, color: '#334155' }}>{row.doctorName || '—'}</span>
+      render: (row) => <span style={{ fontWeight: 600, color: '#334155', fontSize: '0.8125rem' }}>{row.doctorName || '—'}</span>
     },
     {
-      key: 'billType', header: 'Scope',
+      key: 'billType', header: 'Scope / Category', sortable: true,
       render: (row) => (
         <span style={{ display: 'inline-block', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 5, padding: '2px 8px', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
           {row.billType}
+        </span>
+      )
+    },
+    {
+      key: 'date', header: 'Date', sortable: true,
+      render: (row) => (
+        <span style={{ fontSize: '0.8125rem', color: '#334155', fontWeight: 600, whiteSpace: 'nowrap' }}>
+          {formatBillDate(row.createdAt || row.date)}
+        </span>
+      )
+    },
+    {
+      key: 'time', header: 'Time', sortable: true,
+      render: (row) => (
+        <span style={{ fontSize: '0.8125rem', color: '#64748b', fontWeight: 600, whiteSpace: 'nowrap' }}>
+          {formatBillTime(row.createdAt || row.date)}
         </span>
       )
     },
@@ -430,6 +564,7 @@ const Billing = () => {
           <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#0a0f1e', letterSpacing: '-0.01em' }}>Billing</h2>
           <p style={{ fontSize: '0.75rem', fontWeight: 500, color: '#374151', marginTop: 2 }}>
             {bills.length} invoice{bills.length !== 1 ? 's' : ''} generated
+            {isFiltered && ` (Filtered: ${filteredBills.length} matching)`}
           </p>
         </div>
         <button
@@ -442,14 +577,132 @@ const Billing = () => {
         </button>
       </div>
 
+      {/* Universal Search & Filters Section (Phase 1) */}
+      <div className="card" style={{ padding: '1rem 1.25rem', background: '#ffffff', borderRadius: 12, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.875rem', alignItems: 'flex-end' }}>
+          {/* Universal Search Input */}
+          <div style={{ gridColumn: 'span 2', minWidth: '260px' }}>
+            <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', marginBottom: 4 }}>
+              Universal Search
+            </label>
+            <div style={{ position: 'relative' }}>
+              <Search style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: '#94a3b8', pointerEvents: 'none' }} />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by invoice ID, patient, ID, doctor, test, amount..."
+                style={{ width: '100%', height: 36, paddingLeft: 32, paddingRight: searchTerm ? 28 : 10, fontSize: '0.8125rem', borderRadius: 8, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#0f172a', outline: 'none' }}
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', alignItems: 'center' }}
+                >
+                  <X style={{ width: 14, height: 14 }} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Start Date */}
+          <div>
+            <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', marginBottom: 4 }}>
+              Start Date
+            </label>
+            <input
+              type="date"
+              value={filterStartDate}
+              onChange={(e) => setFilterStartDate(e.target.value)}
+              style={{ width: '100%', height: 36, padding: '0 8px', fontSize: '0.8125rem', borderRadius: 8, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#0f172a', outline: 'none' }}
+            />
+          </div>
+
+          {/* End Date */}
+          <div>
+            <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', marginBottom: 4 }}>
+              End Date
+            </label>
+            <input
+              type="date"
+              value={filterEndDate}
+              onChange={(e) => setFilterEndDate(e.target.value)}
+              style={{ width: '100%', height: 36, padding: '0 8px', fontSize: '0.8125rem', borderRadius: 8, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#0f172a', outline: 'none' }}
+            />
+          </div>
+
+          {/* Payment Status Dropdown */}
+          <div>
+            <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', marginBottom: 4 }}>
+              Payment Status
+            </label>
+            <select
+              value={filterPaymentStatus}
+              onChange={(e) => setFilterPaymentStatus(e.target.value)}
+              style={{ width: '100%', height: 36, padding: '0 8px', fontSize: '0.8125rem', borderRadius: 8, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#0f172a', outline: 'none', cursor: 'pointer' }}
+            >
+              <option value="All">All Statuses</option>
+              <option value="Paid">Paid</option>
+              <option value="Pending">Pending</option>
+            </select>
+          </div>
+
+          {/* Billing Category Dropdown */}
+          <div>
+            <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.05em', marginBottom: 4 }}>
+              Billing Category
+            </label>
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              style={{ width: '100%', height: 36, padding: '0 8px', fontSize: '0.8125rem', borderRadius: 8, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#0f172a', outline: 'none', cursor: 'pointer' }}
+            >
+              <option value="All">All Categories</option>
+              <option value="Consultation">Consultation</option>
+              <option value="Investigations">Investigations</option>
+              <option value="Both">Both</option>
+            </select>
+          </div>
+
+          {/* Clear Filters Button */}
+          <div>
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              disabled={!isFiltered}
+              style={{
+                width: '100%',
+                height: 36,
+                padding: '0 12px',
+                fontSize: '0.8125rem',
+                fontWeight: 600,
+                borderRadius: 8,
+                border: '1px solid #cbd5e1',
+                background: isFiltered ? '#f1f5f9' : '#f8fafc',
+                color: isFiltered ? '#0f172a' : '#94a3b8',
+                cursor: isFiltered ? 'pointer' : 'default',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                transition: 'all 150ms'
+              }}
+            >
+              <RefreshCw style={{ width: 13, height: 13 }} />
+              Clear Filters
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Invoices Table */}
       <div className="card" style={{ padding: '1.25rem' }}>
         <Table
           columns={columns}
-          data={bills}
-          searchPlaceholder="Search invoices by patient name..."
-          searchKey="patientName"
-          emptyMessage="No billing invoices recorded"
+          data={filteredBills}
+          searchPlaceholder="Search invoices..."
+          emptyMessage={isFiltered ? "No invoices match the selected search and filter criteria." : "No billing invoices recorded"}
           itemsPerPage={6}
           actions={(row) => (
             <button

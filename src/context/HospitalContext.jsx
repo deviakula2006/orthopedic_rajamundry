@@ -790,6 +790,8 @@ const adaptBill = (row) => ({
   patientName: row.patient?.name,
 
   date: row.billDate,
+  createdAt: row.createdAt,
+  dateTime: row.createdAt || row.billDate,
   billType:
     row.billType === 'OPD'
       ? 'Consultation'
@@ -801,6 +803,7 @@ const adaptBill = (row) => ({
 
   paymentMode: row.paymentMode,
   paymentStatus: row.paymentStatus,
+  itemNames: row.itemNames || '',
 
   items: row.items
     ? row.items.map((item) => ({

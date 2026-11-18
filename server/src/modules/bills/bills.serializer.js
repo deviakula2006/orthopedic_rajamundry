@@ -24,6 +24,7 @@ export function serializeBill(row, items = null) {
     discount: Number(row.discount),
     tax: Number(row.tax),
     total: Number(row.total),
+    itemNames: row.item_names || '',
     items: items ? items.map(serializeBillItem) : undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at

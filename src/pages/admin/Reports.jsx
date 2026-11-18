@@ -14,7 +14,11 @@ import {
   ChevronLeft,
   ChevronRight,
   UserCheck,
-  UserX
+  UserX,
+  Search,
+  RefreshCw,
+  X,
+  Filter
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -69,7 +73,7 @@ function formatCurrency(val) {
 const ITEMS_PER_PAGE = 8;
 
 const Reports = () => {
-  const { hospitalSettings, showToast } = useHospital();
+  const { hospitalSettings, showToast, doctors = [] } = useHospital();
 
   // Date filters: Default from start of year to current IST date
   const [dateFrom, setDateFrom] = useState('2026-01-01');
@@ -82,6 +86,17 @@ const Reports = () => {
   const [revenueFilter, setRevenueFilter] = useState('Paid'); // 'Paid' | 'Pending'
   const [consultFilter, setConsultFilter] = useState('Paid');
   const [investigationFilter, setInvestigationFilter] = useState('Paid');
+
+  // Search & Filter state per tab (Phase 3)
+  const [revSearch, setRevSearch] = useState('');
+  const [revCategory, setRevCategory] = useState('All');
+
+  const [consultSearch, setConsultSearch] = useState('');
+
+  const [invSearch, setInvSearch] = useState('');
+
+  const [patientSearch, setPatientSearch] = useState('');
+  const [patientDoctorFilter, setPatientDoctorFilter] = useState('All');
 
   // Pagination page state per tab
   const [page, setPage] = useState(1);
@@ -97,10 +112,21 @@ const Reports = () => {
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
 
-  // Reset pagination on tab or sub-section change
+  // Reset pagination on tab or search/filter change
   useEffect(() => {
     setPage(1);
-  }, [activeTab, revenueFilter, consultFilter, investigationFilter]);
+  }, [
+    activeTab,
+    revenueFilter,
+    consultFilter,
+    investigationFilter,
+    revSearch,
+    revCategory,
+    consultSearch,
+    invSearch,
+    patientSearch,
+    patientDoctorFilter
+  ]);
 
   // Fetch report data whenever active tab or date range changes
   useEffect(() => {
@@ -145,7 +171,7 @@ const Reports = () => {
   };
 
   // ---------------------------------------------------------------------------
-  // ALL REVENUE TAB FILTERED LISTS & CALCULATIONS
+  // ALL REVENUE TAB FILTERED LISTS & CALCULATIONS (Phase 3.1)
   // ---------------------------------------------------------------------------
   const paidRevenueInvoices = useMemo(
     () => items.filter((b) => b.paymentStatus === 'Paid'),
@@ -159,6 +185,26 @@ const Reports = () => {
   const displayedRevenueInvoices =
     revenueFilter === 'Paid' ? paidRevenueInvoices : pendingRevenueInvoices;
 
+  const filteredRevenueInvoices = useMemo(() => {
+    let list = displayedRevenueInvoices;
+    if (revCategory !== 'All') {
+      list = list.filter((b) => b.category === revCategory);
+    }
+    if (revSearch.trim()) {
+      const q = revSearch.trim().toLowerCase();
+      list = list.filter((b) => {
+        const inv = (b.invoiceNo || '').toLowerCase();
+        const pName = (b.patientName || '').toLowerCase();
+        const pId = (b.patientId || '').toLowerCase();
+        const dName = (b.doctorName || '').toLowerCase();
+        const cat = (b.category || '').toLowerCase();
+        const tot = String(b.total ?? '');
+        return inv.includes(q) || pName.includes(q) || pId.includes(q) || dName.includes(q) || cat.includes(q) || tot.includes(q);
+      });
+    }
+    return list;
+  }, [displayedRevenueInvoices, revCategory, revSearch]);
+
   const revPaidTotal = summary.totalPaidRevenue ?? 0;
   const revPaidConsult = summary.consultationPaidRevenue ?? 0;
   const revPaidInv = summary.investigationPaidRevenue ?? 0;
@@ -168,7 +214,7 @@ const Reports = () => {
   const revPendingInv = summary.investigationPendingAmount ?? 0;
 
   // ---------------------------------------------------------------------------
-  // CONSULTATIONS TAB FILTERED LISTS
+  // CONSULTATIONS TAB FILTERED LISTS (Phase 3.2)
   // ---------------------------------------------------------------------------
   const paidConsultations = useMemo(
     () => items.filter((b) => b.paymentStatus === 'Paid'),
@@ -182,8 +228,26 @@ const Reports = () => {
   const displayedConsultations =
     consultFilter === 'Paid' ? paidConsultations : pendingConsultations;
 
+  const filteredConsultations = useMemo(() => {
+    let list = displayedConsultations;
+    if (consultSearch.trim()) {
+      const q = consultSearch.trim().toLowerCase();
+      list = list.filter((b) => {
+        const inv = (b.invoiceNo || '').toLowerCase();
+        const pName = (b.patientName || '').toLowerCase();
+        const pId = (b.patientId || '').toLowerCase();
+        const dName = (b.doctorName || '').toLowerCase();
+        const cType = (b.consultationType || '').toLowerCase();
+        const amt = String(b.consultationRevenue ?? b.consultationAmount ?? b.total ?? '');
+        const dateStr = (b.date || b.dateTime || '').toLowerCase();
+        return inv.includes(q) || pName.includes(q) || pId.includes(q) || dName.includes(q) || cType.includes(q) || amt.includes(q) || dateStr.includes(q);
+      });
+    }
+    return list;
+  }, [displayedConsultations, consultSearch]);
+
   // ---------------------------------------------------------------------------
-  // LAB INVESTIGATIONS TAB FILTERED LISTS
+  // LAB INVESTIGATIONS TAB FILTERED LISTS (Phase 3.3)
   // ---------------------------------------------------------------------------
   const paidInvestigations = useMemo(
     () => items.filter((b) => b.paymentStatus === 'Paid'),
@@ -197,14 +261,66 @@ const Reports = () => {
   const displayedInvestigations =
     investigationFilter === 'Paid' ? paidInvestigations : pendingInvestigations;
 
+  const filteredInvestigations = useMemo(() => {
+    let list = displayedInvestigations;
+    if (invSearch.trim()) {
+      const q = invSearch.trim().toLowerCase();
+      list = list.filter((b) => {
+        const inv = (b.invoiceNo || '').toLowerCase();
+        const pName = (b.patientName || '').toLowerCase();
+        const pId = (b.patientId || '').toLowerCase();
+        const iName = (b.investigationName || '').toLowerCase();
+        const dName = (b.doctorName || b.orderedBy || '').toLowerCase();
+        const amt = String(b.investigationAmount ?? b.totalAmount ?? b.total ?? '');
+        const dateStr = (b.date || b.dateTime || '').toLowerCase();
+        return inv.includes(q) || pName.includes(q) || pId.includes(q) || iName.includes(q) || dName.includes(q) || amt.includes(q) || dateStr.includes(q);
+      });
+    }
+    return list;
+  }, [displayedInvestigations, invSearch]);
+
+  // ---------------------------------------------------------------------------
+  // PATIENT REGISTRATIONS TAB FILTERED LISTS (Phase 3.4)
+  // ---------------------------------------------------------------------------
+  const filteredPatients = useMemo(() => {
+    let list = items;
+    if (patientDoctorFilter !== 'All') {
+      list = list.filter((p) => (p.assignedDoctor || p.assigned_doctor) === patientDoctorFilter);
+    }
+    if (patientSearch.trim()) {
+      const q = patientSearch.trim().toLowerCase();
+      list = list.filter((p) => {
+        const code = (p.code || p.patient_code || p.id || '').toLowerCase();
+        const name = (p.name || '').toLowerCase();
+        const phone = (p.phone || '').toLowerCase();
+        const doc = (p.assignedDoctor || p.assigned_doctor || '').toLowerCase();
+        const diag = (p.diagnosis || p.primary_diagnosis || '').toLowerCase();
+        return code.includes(q) || name.includes(q) || phone.includes(q) || doc.includes(q) || diag.includes(q);
+      });
+    }
+    return list;
+  }, [items, patientDoctorFilter, patientSearch]);
+
+  const doctorOptions = useMemo(() => {
+    const set = new Set();
+    items.forEach((p) => {
+      const doc = p.assignedDoctor || p.assigned_doctor;
+      if (doc && doc !== 'Not Assigned') set.add(doc);
+    });
+    doctors.forEach((d) => {
+      if (d.name) set.add(d.name);
+    });
+    return Array.from(set).sort();
+  }, [items, doctors]);
+
   // ---------------------------------------------------------------------------
   // PAGINATION CALCULATIONS
   // ---------------------------------------------------------------------------
   let currentTabList = [];
-  if (activeTab === 'revenue') currentTabList = displayedRevenueInvoices;
-  else if (activeTab === 'consultations') currentTabList = displayedConsultations;
-  else if (activeTab === 'investigations') currentTabList = displayedInvestigations;
-  else currentTabList = items;
+  if (activeTab === 'revenue') currentTabList = filteredRevenueInvoices;
+  else if (activeTab === 'consultations') currentTabList = filteredConsultations;
+  else if (activeTab === 'investigations') currentTabList = filteredInvestigations;
+  else currentTabList = filteredPatients;
 
   const totalPages = Math.max(1, Math.ceil(currentTabList.length / ITEMS_PER_PAGE));
   const startIndex = (page - 1) * ITEMS_PER_PAGE;
@@ -629,6 +745,58 @@ const Reports = () => {
                 </div>
               </div>
 
+              {/* Universal Search & Filters for All Revenue (Phase 3.1) */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
+                  <div className="relative flex-1 min-w-[220px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={revSearch}
+                      onChange={(e) => setRevSearch(e.target.value)}
+                      placeholder="Search invoice ID, patient, doctor, category, amount..."
+                      className="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:outline-none transition-all"
+                    />
+                    {revSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setRevSearch('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <select
+                    value={revCategory}
+                    onChange={(e) => setRevCategory(e.target.value)}
+                    className="px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-semibold focus:outline-none cursor-pointer"
+                  >
+                    <option value="All">All Categories</option>
+                    <option value="Consultation">Consultation</option>
+                    <option value="Investigation">Investigation</option>
+                    <option value="Both">Both</option>
+                  </select>
+
+                  {(revSearch || revCategory !== 'All') && (
+                    <button
+                      type="button"
+                      onClick={() => { setRevSearch(''); setRevCategory('All'); }}
+                      className="flex items-center gap-1 px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 font-bold transition-all cursor-pointer"
+                      title="Clear filters"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      <span>Clear</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="text-xs font-semibold text-slate-500">
+                  Showing <span className="font-bold text-slate-800">{filteredRevenueInvoices.length}</span> of {displayedRevenueInvoices.length} {revenueFilter.toLowerCase()} invoices
+                </div>
+              </div>
+
               {/* Exact 6 Required Table Columns */}
               <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
                 <div className="overflow-x-auto">
@@ -708,7 +876,20 @@ const Reports = () => {
                       {paginatedList.length === 0 && (
                         <tr>
                           <td colSpan="7" className="px-6 py-10 text-center text-slate-400 font-medium">
-                            No {revenueFilter.toLowerCase()} invoices found in the selected date range.
+                            {revSearch || revCategory !== 'All' ? (
+                              <div className="space-y-1">
+                                <p>No matching {revenueFilter.toLowerCase()} invoices found for your search/filter criteria.</p>
+                                <button
+                                  type="button"
+                                  onClick={() => { setRevSearch(''); setRevCategory('All'); }}
+                                  className="text-blue-600 font-bold text-xs hover:underline cursor-pointer"
+                                >
+                                  Clear Filters
+                                </button>
+                              </div>
+                            ) : (
+                              `No ${revenueFilter.toLowerCase()} invoices found in the selected date range.`
+                            )}
                           </td>
                         </tr>
                       )}
@@ -868,6 +1049,47 @@ const Reports = () => {
                 </div>
               </div>
 
+              {/* Search & Filters for Consultations (Phase 3.2) */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
+                  <div className="relative flex-1 min-w-[220px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={consultSearch}
+                      onChange={(e) => setConsultSearch(e.target.value)}
+                      placeholder="Search invoice ID, patient, doctor, type, amount, date..."
+                      className="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:outline-none transition-all"
+                    />
+                    {consultSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setConsultSearch('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {consultSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setConsultSearch('')}
+                      className="flex items-center gap-1 px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 font-bold transition-all cursor-pointer"
+                      title="Clear filters"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      <span>Clear</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="text-xs font-semibold text-slate-500">
+                  Showing <span className="font-bold text-slate-800">{filteredConsultations.length}</span> of {displayedConsultations.length} {consultFilter.toLowerCase()} consultations
+                </div>
+              </div>
+
               {/* Required Columns: Invoice ID, Patient Name, Consultation Type, Date & Time, Doctor Name, Total Consultation Amount, Payment Status */}
               <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
                 <div className="overflow-x-auto">
@@ -943,7 +1165,20 @@ const Reports = () => {
                       {paginatedList.length === 0 && (
                         <tr>
                           <td colSpan="8" className="px-6 py-10 text-center text-slate-400 font-medium">
-                            No consultation records found in the selected range.
+                            {consultSearch ? (
+                              <div className="space-y-1">
+                                <p>No matching {consultFilter.toLowerCase()} consultations found for your search criteria.</p>
+                                <button
+                                  type="button"
+                                  onClick={() => setConsultSearch('')}
+                                  className="text-blue-600 font-bold text-xs hover:underline cursor-pointer"
+                                >
+                                  Clear Filters
+                                </button>
+                              </div>
+                            ) : (
+                              `No ${consultFilter.toLowerCase()} consultations found in the selected range.`
+                            )}
                           </td>
                         </tr>
                       )}
@@ -1103,6 +1338,47 @@ const Reports = () => {
                 </div>
               </div>
 
+              {/* Search & Filters for Lab Investigations (Phase 3.3) */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
+                  <div className="relative flex-1 min-w-[220px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={invSearch}
+                      onChange={(e) => setInvSearch(e.target.value)}
+                      placeholder="Search invoice ID, patient, test name, doctor/staff, amount, date..."
+                      className="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:outline-none transition-all"
+                    />
+                    {invSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setInvSearch('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {invSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setInvSearch('')}
+                      className="flex items-center gap-1 px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 font-bold transition-all cursor-pointer"
+                      title="Clear filters"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      <span>Clear</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="text-xs font-semibold text-slate-500">
+                  Showing <span className="font-bold text-slate-800">{filteredInvestigations.length}</span> of {displayedInvestigations.length} {investigationFilter.toLowerCase()} investigations
+                </div>
+              </div>
+
               {/* Required Columns: Invoice ID, Patient Name, Investigation Type / Name, Date & Time, Total Investigation Amount, Payment Status */}
               <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
                 <div className="overflow-x-auto">
@@ -1174,7 +1450,20 @@ const Reports = () => {
                       {paginatedList.length === 0 && (
                         <tr>
                           <td colSpan="7" className="px-6 py-10 text-center text-slate-400 font-medium">
-                            No investigation records found in the selected range.
+                            {invSearch ? (
+                              <div className="space-y-1">
+                                <p>No matching {investigationFilter.toLowerCase()} investigations found for your search criteria.</p>
+                                <button
+                                  type="button"
+                                  onClick={() => setInvSearch('')}
+                                  className="text-blue-600 font-bold text-xs hover:underline cursor-pointer"
+                                >
+                                  Clear Filters
+                                </button>
+                              </div>
+                            ) : (
+                              `No ${investigationFilter.toLowerCase()} investigations found in the selected range.`
+                            )}
                           </td>
                         </tr>
                       )}
@@ -1279,6 +1568,60 @@ const Reports = () => {
                 </div>
               </div>
 
+              {/* Search & Filters for Patient Registrations (Phase 3.4) */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
+                  <div className="relative flex-1 min-w-[220px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={patientSearch}
+                      onChange={(e) => setPatientSearch(e.target.value)}
+                      placeholder="Search patient ID, name, phone, doctor, diagnosis..."
+                      className="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-500 focus:outline-none transition-all"
+                    />
+                    {patientSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setPatientSearch('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <select
+                    value={patientDoctorFilter}
+                    onChange={(e) => setPatientDoctorFilter(e.target.value)}
+                    className="px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-semibold focus:outline-none cursor-pointer"
+                  >
+                    <option value="All">All Assigned Doctors</option>
+                    {doctorOptions.map((docName) => (
+                      <option key={docName} value={docName}>
+                        {docName}
+                      </option>
+                    ))}
+                  </select>
+
+                  {(patientSearch || patientDoctorFilter !== 'All') && (
+                    <button
+                      type="button"
+                      onClick={() => { setPatientSearch(''); setPatientDoctorFilter('All'); }}
+                      className="flex items-center gap-1 px-3 py-2 text-xs rounded-xl border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200 font-bold transition-all cursor-pointer"
+                      title="Clear filters"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      <span>Clear</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="text-xs font-semibold text-slate-500">
+                  Showing <span className="font-bold text-slate-800">{filteredPatients.length}</span> of {items.length} registered patients
+                </div>
+              </div>
+
               {/* Required Columns: Patient ID, Patient Name, Age / Gender, Assigned Doctor, Diagnosis, Registration Date */}
               <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
                 <div className="overflow-x-auto">
@@ -1351,7 +1694,20 @@ const Reports = () => {
                       {paginatedList.length === 0 && (
                         <tr>
                           <td colSpan="7" className="px-6 py-10 text-center text-slate-400 font-medium">
-                            No patient registrations found in the selected range.
+                            {patientSearch || patientDoctorFilter !== 'All' ? (
+                              <div className="space-y-1">
+                                <p>No registered patients match your search/filter criteria.</p>
+                                <button
+                                  type="button"
+                                  onClick={() => { setPatientSearch(''); setPatientDoctorFilter('All'); }}
+                                  className="text-blue-600 font-bold text-xs hover:underline cursor-pointer"
+                                >
+                                  Clear Filters
+                                </button>
+                              </div>
+                            ) : (
+                              'No patient registrations found in the selected range.'
+                            )}
                           </td>
                         </tr>
                       )}

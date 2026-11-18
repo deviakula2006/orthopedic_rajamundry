@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Menu, ChevronDown, User, LogOut, Settings } from 'lucide-react';
+import { Menu, ChevronDown, User, LogOut, Settings, Users } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const PAGE_TITLES = {
   dashboard:     { title: 'Dashboard',           sub: 'Hospital overview & analytics' },
+  'my-patients': { title: 'My Patients',         sub: 'All associated patients across visits' },
   patients:      { title: 'Patients',            sub: 'Patient directory & records' },
   doctors:       { title: 'Doctors',             sub: 'Medical staff directory' },
   receptionists: { title: 'Receptionists',       sub: 'Front desk staff' },
@@ -37,6 +38,7 @@ const Topbar = ({ toggleSidebar }) => {
 
   const getPage = () => {
     const path = location.pathname;
+    if (path.includes('my-patients')) return PAGE_TITLES['my-patients'];
     for (const key of Object.keys(PAGE_TITLES)) {
       if (path.includes(key)) return PAGE_TITLES[key];
     }
@@ -88,6 +90,32 @@ const Topbar = ({ toggleSidebar }) => {
             {page.sub}
           </p>
         </div>
+
+        {/* Doctor Quick Navigation */}
+        {user?.role === 'Doctor' && (
+          <div className="hidden sm:flex items-center gap-1 ml-4 bg-slate-100/90 p-1 rounded-xl border border-slate-200/70">
+            <button
+              onClick={() => navigate('/doctor/dashboard')}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                location.pathname === '/doctor/dashboard'
+                  ? 'bg-white text-hospital-600 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Today's Queue
+            </button>
+            <button
+              onClick={() => navigate('/doctor/my-patients')}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                location.pathname === '/doctor/my-patients'
+                  ? 'bg-white text-hospital-600 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              My Patients
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ─── Right ──────────────────────────────────── */}
@@ -98,7 +126,7 @@ const Topbar = ({ toggleSidebar }) => {
         {/* Profile button */}
         <button
           onClick={() => setShowMenu(v => !v)}
-          className="flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors"
+          className="flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors cursor-pointer"
           style={{ border: '1px solid #e8eaed', background: '#ffffff' }}
           onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
           onMouseLeave={e => e.currentTarget.style.background = '#ffffff'}
@@ -139,6 +167,18 @@ const Topbar = ({ toggleSidebar }) => {
 
             {/* Actions */}
             <div className="p-1">
+              {user?.role === 'Doctor' && (
+                <button
+                  className="dropdown-item"
+                  onClick={() => {
+                    setShowMenu(false);
+                    navigate('/doctor/my-patients');
+                  }}
+                >
+                  <Users className="h-3.5 w-3.5" />
+                  My Patients
+                </button>
+              )}
               <button
                 className="dropdown-item"
                 onClick={() => {

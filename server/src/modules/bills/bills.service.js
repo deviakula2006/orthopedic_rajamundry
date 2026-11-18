@@ -8,8 +8,8 @@ import { logActivity } from '../activities/activities.repository.js';
 import { buildMeta } from '../../utils/pagination.js';
 import { ApiError } from '../../utils/ApiError.js';
 
-export async function listBills({ page, limit, offset, patientId, paymentStatus, billType }) {
-  const { rows, total } = await billsRepository.list({ limit, offset, patientId, paymentStatus, billType });
+export async function listBills({ page, limit, offset, patientId, paymentStatus, billType, search, startDate, endDate }) {
+  const { rows, total } = await billsRepository.list({ limit, offset, patientId, paymentStatus, billType, search, startDate, endDate });
   return { items: rows.map((row) => serializeBill(row)), meta: buildMeta({ page, limit, total }) };
 }
 

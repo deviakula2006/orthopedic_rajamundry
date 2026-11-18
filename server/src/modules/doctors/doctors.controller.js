@@ -43,3 +43,8 @@ export const getDashboard = asyncHandler(async (req, res) => {
   const summary = await doctorsService.getDoctorDashboard(req.user, req.query);
   sendSuccess(res, { data: summary });
 });
+
+export const getMyPatients = asyncHandler(async (req, res) => {
+  const patients = await doctorsService.getMyPatients(req.user, req.query);
+  sendSuccess(res, { data: patients });
+});

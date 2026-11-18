@@ -128,6 +128,64 @@ export async function findByCode(doctorCode, client) {
   return rows[0] ?? null;
 }
 
+export async function listMyPatients(doctorId, search) {
+  const params = [doctorId];
+  let searchCondition = '';
+  if (search?.trim()) {
+    params.push(`%${search.trim().toLowerCase()}%`);
+    searchCondition = `AND (
+      LOWER(p.name) LIKE $${params.length}
+      OR LOWER(p.patient_code) LIKE $${params.length}
+      OR LOWER(p.phone) LIKE $${params.length}
+      OR LOWER(p.primary_diagnosis) LIKE $${params.length}
+    )`;
+  }
+
+  const { rows } = await query(
+    `SELECT * FROM (
+       SELECT DISTINCT ON (p.id)
+         p.id, p.patient_code, p.name, p.age, p.gender, p.phone, p.address,
+         p.blood_group, p.primary_diagnosis, p.last_visit_date, p.created_at,
+         COALESCE(
+           (SELECT a.appointment_date FROM appointments a WHERE a.patient_id = p.id AND a.doctor_id = $1 ORDER BY a.appointment_date DESC, a.created_at DESC LIMIT 1),
+           (SELECT c.created_at::date FROM consultations c WHERE c.patient_id = p.id AND c.doctor_id = $1 ORDER BY c.created_at DESC LIMIT 1),
+           p.last_visit_date
+         ) AS last_visit,
+         (SELECT a.type FROM appointments a WHERE a.patient_id = p.id AND a.doctor_id = $1 ORDER BY a.appointment_date DESC, a.created_at DESC LIMIT 1) AS latest_appointment_type,
+         (SELECT a.status FROM appointments a WHERE a.patient_id = p.id AND a.doctor_id = $1 ORDER BY a.appointment_date DESC, a.created_at DESC LIMIT 1) AS latest_appointment_status
+       FROM patients p
+       WHERE p.deleted_at IS NULL
+         AND (
+           EXISTS (
+             SELECT 1 FROM appointments a
+             WHERE a.patient_id = p.id AND a.doctor_id = $1
+           )
+           OR EXISTS (
+             SELECT 1 FROM consultations c
+             WHERE c.patient_id = p.id AND c.doctor_id = $1
+           )
+         )
+         ${searchCondition}
+       ORDER BY p.id
+     ) sub
+     ORDER BY sub.last_visit DESC NULLS LAST, sub.name ASC`,
+    params
+  );
+  return rows;
+}
+
+export async function isPatientAssociatedWithDoctor(patientId, doctorId) {
+  const { rows } = await query(
+    `SELECT 1 FROM patients p
+     WHERE p.id = $1 AND p.deleted_at IS NULL AND (
+       EXISTS (SELECT 1 FROM appointments a WHERE a.patient_id = p.id AND a.doctor_id = $2)
+       OR EXISTS (SELECT 1 FROM consultations c WHERE c.patient_id = p.id AND c.doctor_id = $2)
+     ) LIMIT 1`,
+    [patientId, doctorId]
+  );
+  return rows.length > 0;
+}
+
 export async function getDoctorDashboardSummary({ doctorId, date }) {
   const targetDate = date || new Date().toISOString().slice(0, 10);
 

@@ -1,13 +1,23 @@
 import { z } from 'zod';
 
-export const updateConsultationSchema = z.object({
-  symptoms: z.string().optional(),
-  clinicalNotes: z.string().optional(),
-  diagnosis: z.string().optional(),
-  treatmentPlan: z.string().optional(),
-  followUpAdvice: z.string().optional(),
-  remarks: z.string().optional()
-});
+export const updateConsultationSchema = z
+  .object({
+    symptoms: z.string().optional().nullable(),
+    clinicalNotes: z.string().optional().nullable(),
+    diagnosis: z.string().optional().nullable(),
+    treatmentPlan: z.string().optional().nullable(),
+    followUpAdvice: z.string().optional().nullable(),
+    remarks: z.string().optional().nullable()
+  })
+  .refine(
+    (data) => {
+      const fields = [data.symptoms, data.clinicalNotes, data.diagnosis, data.treatmentPlan, data.followUpAdvice, data.remarks];
+      return fields.some((f) => typeof f === 'string' && f.trim().length > 0);
+    },
+    {
+      message: 'Please enter at least one consultation summary field.'
+    }
+  );
 
 export const completeConsultationSchema = z.object({
   symptoms: z.string().optional(),

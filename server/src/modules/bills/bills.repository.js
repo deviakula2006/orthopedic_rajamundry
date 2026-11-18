@@ -5,7 +5,8 @@ const BASE_SELECT = `
   b.id, b.invoice_no, b.bill_date, b.bill_type, b.payment_mode, b.payment_status,
   b.sub_total, b.discount, b.tax, b.total, b.created_at, b.updated_at,
   p.id AS patient_id, p.patient_code, p.name AS patient_name,
-  d.id AS doctor_id, d.doctor_code, d.name AS doctor_name
+  d.id AS doctor_id, d.doctor_code, d.name AS doctor_name,
+  (SELECT string_agg(bi.description, ' | ') FROM bill_items bi WHERE bi.bill_id = b.id) AS item_names
 `;
 
 const BASE_FROM = `
@@ -14,7 +15,7 @@ const BASE_FROM = `
   LEFT JOIN doctors d ON d.id = b.doctor_id
 `;
 
-export async function list({ limit, offset, patientId, paymentStatus, billType }) {
+export async function list({ limit, offset, patientId, paymentStatus, billType, search, startDate, endDate }) {
   const conditions = [];
   const params = [];
 
@@ -29,6 +30,26 @@ export async function list({ limit, offset, patientId, paymentStatus, billType }
   if (billType) {
     params.push(billType);
     conditions.push(`b.bill_type = $${params.length}`);
+  }
+  if (startDate) {
+    params.push(startDate);
+    conditions.push(`b.bill_date >= $${params.length}`);
+  }
+  if (endDate) {
+    params.push(endDate);
+    conditions.push(`b.bill_date <= $${params.length}`);
+  }
+  if (search && search.trim()) {
+    const term = `%${search.trim().toLowerCase()}%`;
+    params.push(term);
+    conditions.push(`(
+      LOWER(b.invoice_no) LIKE $${params.length} OR
+      LOWER(p.name) LIKE $${params.length} OR
+      LOWER(p.patient_code) LIKE $${params.length} OR
+      LOWER(COALESCE(d.name, '')) LIKE $${params.length} OR
+      b.total::text LIKE $${params.length} OR
+      EXISTS (SELECT 1 FROM bill_items bi WHERE bi.bill_id = b.id AND LOWER(bi.description) LIKE $${params.length})
+    )`);
   }
 
   const whereSql = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -177,7 +198,7 @@ export async function linkInvestigationOrdersToBill(orderIds, billId, client) {
   if (!orderIds || !orderIds.length) return;
   await client.query(
     `UPDATE consultation_investigations
-     SET bill_id = $1, billing_status = 'Billed', billed_at = now()
+     SET bill_id = $1, billing_status = 'Billed', status = 'Completed', billed_at = now()
      WHERE id = ANY($2)`,
     [billId, orderIds]
   );

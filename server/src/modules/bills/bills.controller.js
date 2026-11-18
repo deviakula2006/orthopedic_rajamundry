@@ -9,7 +9,10 @@ export const list = asyncHandler(async (req, res) => {
     ...pagination,
     patientId: req.query.patientId,
     paymentStatus: req.query.paymentStatus,
-    billType: req.query.billType
+    billType: req.query.billType,
+    search: req.query.search,
+    startDate: req.query.startDate,
+    endDate: req.query.endDate
   });
   sendSuccess(res, { data: items, meta });
 });

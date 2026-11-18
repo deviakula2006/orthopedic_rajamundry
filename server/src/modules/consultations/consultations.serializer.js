@@ -44,6 +44,7 @@ export function serializePrescription(row) {
 
 export function serializeConsultationInvestigation(row) {
   if (!row) return null;
+  const isCompleted = Boolean(row.bill_id || row.billing_status === 'Billed' || row.status === 'Completed');
   return {
     id: row.id,
     consultationId: row.consultation_id,
@@ -52,11 +53,13 @@ export function serializeConsultationInvestigation(row) {
     testName: row.testName || row.test_name,
     category: row.category,
     price: row.price != null ? parseFloat(row.price) : null,
-    status: row.status || 'Ordered',
+    status: isCompleted ? 'Completed' : 'Ordered',
+    billingStatus: row.billing_status || (isCompleted ? 'Billed' : 'Unbilled'),
+    billId: row.bill_id || null,
     result: row.result || null,
     orderedAt: row.ordered_at,
     orderedTime: row.ordered_at ? new Date(row.ordered_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '',
-    orderedBy: row.doctor_name || 'Doctor',
+    orderedBy: row.ordered_by_name || row.doctor_name || 'Doctor',
     completedAt: row.completed_at
   };
 }
@@ -87,7 +90,7 @@ export function serializeConsultation(row) {
     vitals: row.vitals ? row.vitals.map(serializeVital) : [],
     prescriptions: row.prescriptions ? row.prescriptions.map(serializePrescription) : [],
     investigations: row.investigations ? row.investigations.map(serializeConsultationInvestigation) : [],
-    summary: (row.symptoms || row.diagnosis || row.clinical_notes) ? {
+    summary: (row.symptoms || row.diagnosis || row.clinical_notes || row.treatment_plan || row.follow_up_advice || row.remarks) ? {
       symptoms: row.symptoms || '',
       findings: row.clinical_notes || '',
       diagnosis: row.diagnosis || '',
