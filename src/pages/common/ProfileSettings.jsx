@@ -165,14 +165,7 @@ const ProfileSettings = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Page Header */}
-      <div style={{ paddingBottom: '1rem', borderBottom: '1px solid #e8eaed' }}>
-        <h1 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#0a0f1e', letterSpacing: '-0.01em' }}>
-          Profile & Account Settings
-        </h1>
-        <p style={{ fontSize: '0.75rem', fontWeight: 500, color: '#475569', marginTop: 2 }}>
-          Manage your personal staff identity, consultation credentials, and system access password
-        </p>
-      </div>
+      
 
       <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
         {/* Navigation Tabs */}

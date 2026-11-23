@@ -178,12 +178,7 @@ const BedManagement = () => {
 
       {/* ─── Header ───────────────────────────────────────────── */}
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between border-b pb-5">
-        <div>
-          <h2 className="text-xl font-bold text-slate-800">Bed &amp; Ward Management</h2>
-          <p className="text-xs text-slate-400 font-semibold mt-0.5">
-            Monitor ward capacity, assign patients, and manage discharges in real time.
-          </p>
-        </div>
+       
 
         <div className="flex flex-wrap items-center gap-3">
           {/* Refresh */}

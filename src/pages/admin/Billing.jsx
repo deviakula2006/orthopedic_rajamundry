@@ -561,7 +561,7 @@ const Billing = () => {
       {/* Page Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '1rem', borderBottom: '1px solid #e8eaed' }}>
         <div>
-          <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#0a0f1e', letterSpacing: '-0.01em' }}>Billing</h2>
+         
           <p style={{ fontSize: '0.75rem', fontWeight: 500, color: '#374151', marginTop: 2 }}>
             {bills.length} invoice{bills.length !== 1 ? 's' : ''} generated
             {isFiltered && ` (Filtered: ${filteredBills.length} matching)`}

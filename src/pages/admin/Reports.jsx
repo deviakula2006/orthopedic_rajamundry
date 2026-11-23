@@ -474,12 +474,7 @@ const Reports = () => {
     <div className="space-y-6">
       {/* ─── Top Header ────────────────────────────────────────── */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Reports & Analytics</h1>
-          <p className="text-xs text-slate-500 font-medium mt-0.5">
-            Generate revenue reports, consultations, investigations and patient registrations
-          </p>
-        </div>
+        
       </div>
 
       {/* ─── Filter & Action Bar ──────────────────────────────── */}

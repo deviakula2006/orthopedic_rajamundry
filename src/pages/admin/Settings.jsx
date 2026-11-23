@@ -778,12 +778,7 @@ const Settings = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Page Header */}
-      <div style={{ paddingBottom: '1rem', borderBottom: '1px solid #e8eaed' }}>
-        <h1 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#0a0f1e', letterSpacing: '-0.01em' }}>Settings</h1>
-        <p style={{ fontSize: '0.75rem', fontWeight: 500, color: '#374151', marginTop: 2 }}>
-          Configure hospital metadata, appointment types, billing GST, and security credentials
-        </p>
-      </div>
+      
 
       <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
         {/* Tab navigation */}
